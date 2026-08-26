@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getSettings, updateSettings } from "../config/env";
+import { prisma } from "../lib/prisma";
 
 export const settingsRouter = Router();
 
@@ -25,4 +26,25 @@ settingsRouter.post("/", (req, res) => {
     message: "Settings updated successfully.",
     settings: updated,
   });
+});
+
+// POST /api/settings/reset-database — empties all posts, comments, scrape runs, and keywords.
+settingsRouter.post("/reset-database", async (_req, res, next) => {
+  try {
+    const deletedComments = await prisma.comment.deleteMany({});
+    const deletedPosts = await prisma.post.deleteMany({});
+    const deletedScrapeRuns = await prisma.scrapeRun.deleteMany({});
+    const deletedKeywords = await prisma.keyword.deleteMany({});
+
+    res.json({
+      ok: true,
+      message: "Database emptied successfully.",
+      deletedComments: deletedComments.count,
+      deletedPosts: deletedPosts.count,
+      deletedScrapeRuns: deletedScrapeRuns.count,
+      deletedKeywords: deletedKeywords.count,
+    });
+  } catch (err) {
+    next(err);
+  }
 });

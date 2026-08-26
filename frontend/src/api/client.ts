@@ -60,6 +60,16 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  resetDatabase: () =>
+    request<{
+      ok: boolean;
+      message: string;
+      deletedComments: number;
+      deletedPosts: number;
+      deletedScrapeRuns: number;
+      deletedKeywords: number;
+    }>("/settings/reset-database", { method: "POST" }),
+
   getOverview: (keyword?: string) => request<Overview>(`/overview${toQuery({ keyword })}`),
 
   getKeywords: () => request<{ keywords: KeywordSummary[] }>("/keywords"),

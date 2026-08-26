@@ -14,6 +14,7 @@ export function SettingsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resettingDb, setResettingDb] = useState(false);
   const [showApifyKey, setShowApifyKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
@@ -51,6 +52,27 @@ export function SettingsPage() {
     }
   }
 
+  async function handleResetDatabase() {
+    const confirmed = window.confirm(
+      "⚠ Are you sure you want to permanently delete ALL posts, comments, scrape runs, and keywords from the database? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setResettingDb(true);
+    setMessage(null);
+    try {
+      const res = await api.resetDatabase();
+      setMessage({
+        type: "success",
+        text: `✓ Database emptied successfully! Purged ${res.deletedPosts} posts, ${res.deletedComments} comments, and ${res.deletedKeywords} keywords.`,
+      });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Failed to empty database." });
+    } finally {
+      setResettingDb(false);
+    }
+  }
+
   function handleModelSelect(model: string) {
     setSettings((prev) => ({ ...prev, aiModel: model }));
   }
@@ -70,7 +92,7 @@ export function SettingsPage() {
         <div>
           <h2>Dashboard Settings</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Configure integrations for Apify scraper data source, AI Sentiment engine, and Resend email alerts.
+            Configure integrations for Apify scraper data source, AI Sentiment engine, Resend email alerts, and database management.
           </p>
         </div>
       </div>
@@ -232,11 +254,11 @@ export function SettingsPage() {
               type="text"
               value={settings.aiModel}
               onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-              placeholder="e.g. gemini-2.5-flash-lite"
+              placeholder="e.g. gemini-3.5-flash-lite"
             />
             <div className="preset-chips" style={{ marginTop: 8 }}>
               <span className="chip-label">Quick select:</span>
-              {["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gpt-4o-mini"].map((model) => (
+              {["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gpt-4o-mini"].map((model) => (
                 <button
                   key={model}
                   type="button"
@@ -286,10 +308,10 @@ export function SettingsPage() {
 
         {/* Submit & Reset actions */}
         <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "flex-end" }}>
-          <button type="button" className="secondary" onClick={fetchSettings} disabled={saving}>
+          <button type="button" className="secondary" onClick={fetchSettings} disabled={saving || resettingDb}>
             Reset Changes
           </button>
-          <button type="submit" disabled={saving} style={{ minWidth: 140 }}>
+          <button type="submit" disabled={saving || resettingDb} style={{ minWidth: 140 }}>
             {saving ? (
               <>
                 <span className="spinner" style={{ marginRight: 8 }} />
@@ -301,6 +323,51 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* Danger Zone: Empty Database Option */}
+      <div
+        className="card settings-section"
+        style={{
+          marginTop: 40,
+          border: "1px solid rgba(220, 38, 38, 0.4)",
+          background: "rgba(220, 38, 38, 0.05)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, color: "#f87171" }}>🗑 Empty Database</h3>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-dim)" }}>
+              Permanently delete all stored posts, comments, scrape runs, and keywords. This allows you to test fresh scrapes from scratch.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleResetDatabase}
+            disabled={resettingDb}
+            style={{
+              background: "#dc2626",
+              color: "#ffffff",
+              border: "none",
+              padding: "10px 20px",
+              fontWeight: 600,
+              fontSize: 13,
+              borderRadius: 8,
+              minWidth: 160,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {resettingDb ? (
+              <>
+                <span className="spinner" style={{ marginRight: 8 }} />
+                Emptying…
+              </>
+            ) : (
+              "🗑 Empty Database"
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
