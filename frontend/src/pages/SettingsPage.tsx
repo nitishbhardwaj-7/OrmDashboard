@@ -9,11 +9,14 @@ export function SettingsPage() {
     aiApiUrl: "",
     aiApiKey: "",
     aiModel: "",
+    resendApiKey: "",
+    alertEmail: "delivered@resend.dev",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showApifyKey, setShowApifyKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
+  const [showResendKey, setShowResendKey] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -67,7 +70,7 @@ export function SettingsPage() {
         <div>
           <h2>Dashboard Settings</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Configure integrations for Apify scraper data source and AI Sentiment Analysis engine.
+            Configure integrations for Apify scraper data source, AI Sentiment engine, and Resend email alerts.
           </p>
         </div>
       </div>
@@ -80,37 +83,95 @@ export function SettingsPage() {
       )}
 
       {/* Integration Status Badges */}
-      <div className="stat-grid" style={{ gridTemplateColumns: "1fr 1fr", marginBottom: 24 }}>
+      <div className="stat-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", marginBottom: 24 }}>
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
               Apify Scraper
             </div>
-            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 15 }}>
-              {settings.apifyConfigured ? "Configured & Ready" : "Missing Credentials"}
+            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
+              {settings.apifyConfigured ? "Ready" : "Incomplete"}
             </div>
           </div>
           <span className={`badge ${settings.apifyConfigured ? "POSITIVE" : "NEGATIVE"}`}>
-            {settings.apifyConfigured ? "Active" : "Incomplete"}
+            {settings.apifyConfigured ? "Active" : "Off"}
           </span>
         </div>
 
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
               AI Sentiment Engine
             </div>
-            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 15 }}>
-              {settings.aiConfigured ? "Configured & Ready" : "Missing Credentials"}
+            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
+              {settings.aiConfigured ? "Ready" : "Incomplete"}
             </div>
           </div>
           <span className={`badge ${settings.aiConfigured ? "POSITIVE" : "NEGATIVE"}`}>
-            {settings.aiConfigured ? "Active" : "Incomplete"}
+            {settings.aiConfigured ? "Active" : "Off"}
+          </span>
+        </div>
+
+        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Email Alerts (Resend)
+            </div>
+            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
+              {settings.resendConfigured ? "Active" : "Disabled"}
+            </div>
+          </div>
+          <span className={`badge ${settings.resendConfigured ? "POSITIVE" : "NEUTRAL"}`}>
+            {settings.resendConfigured ? "Active" : "Off"}
           </span>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Resend Email Alerts Card */}
+        <div className="card settings-section" style={{ border: "1px solid rgba(220, 38, 38, 0.4)", background: "rgba(220, 38, 38, 0.03)" }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16, color: "#f87171" }}>🚨 Instant Negative Alert Email Notifications</h3>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              Sends an immediate email notification via Resend whenever a NEW negative post or comment is discovered.
+            </span>
+          </div>
+
+          <div className="settings-form-group">
+            <label htmlFor="resendApiKey">Resend API Key</label>
+            <div className="input-with-button">
+              <input
+                id="resendApiKey"
+                type={showResendKey ? "text" : "password"}
+                value={settings.resendApiKey ?? ""}
+                onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
+                placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowResendKey(!showResendKey)}
+                style={{ minWidth: 64 }}
+              >
+                {showResendKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <span className="field-hint">Your Resend API token used for automated email alerts.</span>
+          </div>
+
+          <div className="settings-form-group" style={{ marginTop: 16 }}>
+            <label htmlFor="alertEmail">Alert Recipient Email</label>
+            <input
+              id="alertEmail"
+              type="email"
+              value={settings.alertEmail ?? "delivered@resend.dev"}
+              onChange={(e) => setSettings({ ...settings, alertEmail: e.target.value })}
+              placeholder="you@example.com"
+            />
+            <span className="field-hint">The target email address where negative mention alert reports will be delivered.</span>
+          </div>
+        </div>
+
         {/* API / Apify Settings Card */}
         <div className="card settings-section">
           <div style={{ marginBottom: 16 }}>
@@ -175,7 +236,7 @@ export function SettingsPage() {
             />
             <div className="preset-chips" style={{ marginTop: 8 }}>
               <span className="chip-label">Quick select:</span>
-              {["gemini-2.5-flash-lite", "gemini-1.5-flash", "gpt-4o-mini"].map((model) => (
+              {["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gpt-4o-mini"].map((model) => (
                 <button
                   key={model}
                   type="button"

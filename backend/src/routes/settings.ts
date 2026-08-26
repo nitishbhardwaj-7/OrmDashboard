@@ -8,7 +8,7 @@ settingsRouter.get("/", (_req, res) => {
 });
 
 settingsRouter.post("/", (req, res) => {
-  const { apifyApiUrl, apifyApiKey, aiApiUrl, aiApiKey, aiModel } = req.body ?? {};
+  const { apifyApiUrl, apifyApiKey, aiApiUrl, aiApiKey, aiModel, resendApiKey, alertEmail } = req.body ?? {};
 
   const updated = updateSettings({
     apifyApiUrl: typeof apifyApiUrl === "string" ? apifyApiUrl : undefined,
@@ -16,6 +16,8 @@ settingsRouter.post("/", (req, res) => {
     aiApiUrl: typeof aiApiUrl === "string" ? aiApiUrl : undefined,
     aiApiKey: typeof aiApiKey === "string" ? aiApiKey : undefined,
     aiModel: typeof aiModel === "string" ? aiModel : undefined,
+    resendApiKey: typeof resendApiKey === "string" ? resendApiKey : undefined,
+    alertEmail: typeof alertEmail === "string" ? alertEmail : undefined,
   });
 
   res.json({

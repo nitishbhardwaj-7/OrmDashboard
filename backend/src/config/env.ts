@@ -22,8 +22,11 @@ export const env = {
 
   AI_API_URL: optional("AI_API_URL"),
   AI_API_KEY: optional("AI_API_KEY"),
-  AI_MODEL: optional("AI_MODEL", "gemini-2.5-flash-lite"),
+  AI_MODEL: optional("AI_MODEL", "gemini-3.5-flash-lite"),
   AI_CONCURRENCY: Number(optional("AI_CONCURRENCY", "3")),
+
+  RESEND_API_KEY: optional("RESEND_API_KEY"),
+  ALERT_EMAIL: optional("ALERT_EMAIL", "delivered@resend.dev"),
 };
 
 export function getSettings() {
@@ -33,8 +36,11 @@ export function getSettings() {
     aiApiUrl: env.AI_API_URL,
     aiApiKey: env.AI_API_KEY,
     aiModel: env.AI_MODEL,
+    resendApiKey: env.RESEND_API_KEY,
+    alertEmail: env.ALERT_EMAIL,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
+    resendConfigured: Boolean(env.RESEND_API_KEY),
   };
 }
 
@@ -44,6 +50,8 @@ export interface SettingsUpdatePayload {
   aiApiUrl?: string;
   aiApiKey?: string;
   aiModel?: string;
+  resendApiKey?: string;
+  alertEmail?: string;
 }
 
 export function updateSettings(updates: SettingsUpdatePayload) {
@@ -67,6 +75,14 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     env.AI_MODEL = updates.aiModel.trim();
     process.env.AI_MODEL = env.AI_MODEL;
   }
+  if (updates.resendApiKey !== undefined) {
+    env.RESEND_API_KEY = updates.resendApiKey.trim();
+    process.env.RESEND_API_KEY = env.RESEND_API_KEY;
+  }
+  if (updates.alertEmail !== undefined) {
+    env.ALERT_EMAIL = updates.alertEmail.trim();
+    process.env.ALERT_EMAIL = env.ALERT_EMAIL;
+  }
 
   // Also auto-extract token if user set APIFY_API_URL with token param and APIFY_API_KEY is empty
   if (env.APIFY_API_URL && !env.APIFY_API_KEY) {
@@ -83,6 +99,8 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     AI_API_URL: env.AI_API_URL,
     AI_API_KEY: env.AI_API_KEY,
     AI_MODEL: env.AI_MODEL,
+    RESEND_API_KEY: env.RESEND_API_KEY,
+    ALERT_EMAIL: env.ALERT_EMAIL,
   });
 
   return getSettings();
@@ -124,10 +142,6 @@ function persistToEnvFile(map: Record<string, string>) {
   }
 }
 
-// Note: we deliberately do NOT throw on missing Apify/AI config at import
-// time. The server should still boot (health check, dashboard on existing
-// data) even before credentials are configured; individual calls that need
-// them will surface a clear, actionable error instead.
 export function assertApifyConfigured() {
   if (!env.APIFY_API_URL || !env.APIFY_API_KEY) {
     throw new ConfigError(
@@ -150,4 +164,3 @@ export class ConfigError extends Error {
     this.name = "ConfigError";
   }
 }
-

@@ -6,6 +6,7 @@ export interface ItemFilters {
   keyword?: string;
   sentiment?: SentimentValue;
   type?: "post" | "comment" | "both";
+  platform?: "reddit" | "quora" | "teamblind" | "all";
   dateFrom?: Date;
   dateTo?: Date;
   author?: string;
@@ -19,13 +20,24 @@ function postWhere(f: ItemFilters): Prisma.PostWhereInput {
   if (f.keyword) where.keyword = { term: f.keyword };
   if (f.sentiment) where.sentiment = f.sentiment;
   if (f.author) where.author = { contains: f.author };
+  if (f.platform && f.platform !== "all") {
+    where.OR = [
+      { platform: f.platform },
+      { url: { contains: f.platform } },
+    ];
+  }
   if (f.dateFrom || f.dateTo) {
     where.publishedAt = {};
     if (f.dateFrom) where.publishedAt.gte = f.dateFrom;
     if (f.dateTo) where.publishedAt.lte = f.dateTo;
   }
   if (f.search) {
-    where.OR = [{ text: { contains: f.search } }, { author: { contains: f.search } }];
+    const existingOR = where.OR || [];
+    where.OR = [
+      ...existingOR,
+      { text: { contains: f.search } },
+      { author: { contains: f.search } },
+    ];
   }
   return where;
 }
@@ -35,13 +47,24 @@ function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
   if (f.keyword) where.keyword = { term: f.keyword };
   if (f.sentiment) where.sentiment = f.sentiment;
   if (f.author) where.author = { contains: f.author };
+  if (f.platform && f.platform !== "all") {
+    where.OR = [
+      { post: { platform: f.platform } },
+      { url: { contains: f.platform } },
+    ];
+  }
   if (f.dateFrom || f.dateTo) {
     where.publishedAt = {};
     if (f.dateFrom) where.publishedAt.gte = f.dateFrom;
     if (f.dateTo) where.publishedAt.lte = f.dateTo;
   }
   if (f.search) {
-    where.OR = [{ text: { contains: f.search } }, { author: { contains: f.search } }];
+    const existingOR = where.OR || [];
+    where.OR = [
+      ...existingOR,
+      { text: { contains: f.search } },
+      { author: { contains: f.search } },
+    ];
   }
   return where;
 }

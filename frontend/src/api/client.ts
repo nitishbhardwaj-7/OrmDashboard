@@ -8,6 +8,8 @@ import type {
   ScrapeResult,
   SearchResponse,
   DashboardSettings,
+  ManualScrapePayload,
+  ManualScrapeResult,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
@@ -83,4 +85,12 @@ export const api = {
 
   retryPost: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/post/${id}`, { method: "POST" }),
   retryComment: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/comment/${id}`, { method: "POST" }),
+  retryAllFailed: () =>
+    request<{ ok: boolean; total: number; analyzed: number; failed: number }>("/retry/all", { method: "POST" }),
+
+  runManualScrape: (payload: ManualScrapePayload) =>
+    request<ManualScrapeResult>("/manual-scraper/scrape", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

@@ -67,6 +67,16 @@ export function FilterBar({
       </select>
 
       <select
+        value={value.platform ?? ""}
+        onChange={(e) => onChange({ ...value, platform: (e.target.value || undefined) as FilterState["platform"] })}
+      >
+        <option value="">All platforms</option>
+        <option value="reddit">Reddit</option>
+        <option value="quora">Quora</option>
+        <option value="teamblind">TeamBlind</option>
+      </select>
+
+      <select
         onChange={(e) => setDatePreset(e.target.value ? Number(e.target.value) : undefined)}
         defaultValue=""
       >

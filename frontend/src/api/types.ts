@@ -63,6 +63,7 @@ export interface ItemFiltersQuery {
   keyword?: string;
   sentiment?: Sentiment;
   type?: "post" | "comment" | "both";
+  platform?: "reddit" | "quora" | "teamblind" | "all";
   dateFrom?: string;
   dateTo?: string;
   author?: string;
@@ -107,7 +108,35 @@ export interface DashboardSettings {
   aiApiUrl: string;
   aiApiKey: string;
   aiModel: string;
+  resendApiKey?: string;
+  alertEmail?: string;
   apifyConfigured?: boolean;
   aiConfigured?: boolean;
+  resendConfigured?: boolean;
 }
+
+export interface ManualScrapePayload {
+  keyword: string;
+  url?: string;
+  limit?: number;
+  platform?: "reddit" | "quora" | "teamblind" | "all";
+}
+
+export interface ManualScrapeResult {
+  ok: boolean;
+  keyword: string;
+  scrapeRunId?: string;
+  itemsReceived: number;
+  postsCreated: number;
+  commentsCreated: number;
+  postsSkippedExisting?: number;
+  commentsSkippedExisting?: number;
+  analyzed: number;
+  failed: number;
+  warnings?: string[];
+  message?: string;
+  posts?: PostItem[];
+  comments?: CommentItem[];
+}
+
 

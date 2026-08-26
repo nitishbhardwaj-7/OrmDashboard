@@ -1,8 +1,39 @@
 import { Router } from "express";
 import { analyzePost, analyzeComment } from "../services/pipelineService";
+import { prisma } from "../lib/prisma";
 import { ConfigError } from "../config/env";
 
 export const retryRouter = Router();
+
+// POST /api/retry/all — re-run AI sentiment analysis for ALL failed posts & comments.
+retryRouter.post("/all", async (_req, res) => {
+  try {
+    const failedPosts = await prisma.post.findMany({ where: { status: "FAILED" }, select: { id: true } });
+    const failedComments = await prisma.comment.findMany({ where: { status: "FAILED" }, select: { id: true } });
+
+    let analyzed = 0;
+    let failed = 0;
+
+    for (const p of failedPosts) {
+      const ok = await analyzePost(p.id);
+      ok ? analyzed++ : failed++;
+    }
+
+    for (const c of failedComments) {
+      const ok = await analyzeComment(c.id);
+      ok ? analyzed++ : failed++;
+    }
+
+    res.json({
+      ok: true,
+      total: failedPosts.length + failedComments.length,
+      analyzed,
+      failed,
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
 
 // POST /api/retry/post/:id — re-run AI sentiment analysis for one failed post.
 retryRouter.post("/post/:id", async (req, res) => {

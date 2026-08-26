@@ -80,6 +80,7 @@ model Post {
   status        String   @default("RECEIVED")
   processingError String?
   analyzedAt    DateTime?
+  alertSent     Boolean  @default(false)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -121,6 +122,7 @@ model Comment {
   status        String   @default("RECEIVED")
   processingError String?
   analyzedAt    DateTime?
+  alertSent     Boolean  @default(false)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

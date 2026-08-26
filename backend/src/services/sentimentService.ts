@@ -80,13 +80,16 @@ async function callChatCompletions(text: string): Promise<string> {
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new AiSentimentError("AI API rejected the request — check AI_API_KEY.", response.status);
+    throw new AiSentimentError("AI API rejected the request — check AI_API_KEY in Settings.", response.status);
   }
   if (response.status === 429) {
-    throw new AiSentimentError("AI API rate limit exceeded. Try again later or lower AI_CONCURRENCY.", 429);
+    throw new AiSentimentError("AI API rate limit exceeded. Try again later.", 429);
   }
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    if (response.status === 400 && (text.includes("API key") || text.includes("INVALID_ARGUMENT"))) {
+      throw new AiSentimentError("AI API Key is invalid or unconfigured — please set a valid AI Key in Settings.", 400);
+    }
     throw new AiSentimentError(`AI API request failed with status ${response.status}: ${text.slice(0, 500)}`, response.status);
   }
 

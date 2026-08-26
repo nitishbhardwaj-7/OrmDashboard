@@ -6,6 +6,7 @@ import { SentimentSectionPage } from "./pages/SentimentSectionPage";
 import { SearchPage } from "./pages/SearchPage";
 import { FailedPage } from "./pages/FailedPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ManualScraperPage } from "./pages/ManualScraperPage";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<OverviewPage />} />
         <Route path="explorer" element={<ExplorerPage />} />
+        <Route path="manual-scraper" element={<ManualScraperPage />} />
         <Route path="negative" element={<SentimentSectionPage title="Negative Mentions" kind="negative" />} />
         <Route path="positive" element={<SentimentSectionPage title="Positive Mentions" kind="positive" />} />
         <Route path="search" element={<SearchPage />} />

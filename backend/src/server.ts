@@ -6,6 +6,7 @@ import { itemsRouter } from "./routes/items";
 import { chartsRouter } from "./routes/charts";
 import { retryRouter } from "./routes/retry";
 import { settingsRouter } from "./routes/settings";
+import { manualScraperRouter } from "./routes/manualScraper";
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/settings", settingsRouter);
+app.use("/api/manual-scraper", manualScraperRouter);
 app.use("/api/keywords", keywordsRouter);
 app.use("/api/retry", retryRouter);
 app.use("/api", itemsRouter);

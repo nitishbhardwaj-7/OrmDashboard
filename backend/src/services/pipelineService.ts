@@ -4,17 +4,8 @@ import { buildSourceKey } from "../lib/hash";
 import { fetchApifyResults, ApifyError } from "./apifyService";
 import { normalizeApifyItems } from "./dataNormalizer";
 import { classifySentiment, AiSentimentError } from "./sentimentService";
+import { sendNegativeMentionAlert } from "./emailService";
 import { NormalizedComment, NormalizedPost } from "../types/normalized";
-
-/**
- * PipelineService orchestrates the full flow described in the spec:
- *   Keyword -> ApifyService -> raw items -> DataNormalizer -> DB (RECEIVED)
- *   -> SentimentService (per item) -> DB (ANALYZED/FAILED) -> Dashboard.
- *
- * AI analysis is only ever triggered after Apify data has been durably
- * stored, so a failure partway through sentiment analysis never loses the
- * raw scraped data.
- */
 
 export interface RunScrapeResult {
   keyword: string;
@@ -44,8 +35,6 @@ export async function runScrapeForKeyword(keywordTerm: string): Promise<RunScrap
   try {
     rawItems = await fetchApifyResults(term);
   } catch (err) {
-    // Persist the failed attempt so it's visible in the dashboard/history,
-    // without a single row of fabricated data.
     const failedRun = await prisma.scrapeRun.create({
       data: {
         keywordId: keyword.id,
@@ -62,8 +51,7 @@ export async function runScrapeForKeyword(keywordTerm: string): Promise<RunScrap
     );
   }
 
-  // 2) Store the untouched raw response immediately — never lost, even if
-  // normalization or AI analysis fails later.
+  // 2) Store untouched raw response
   const scrapeRun = await prisma.scrapeRun.create({
     data: {
       keywordId: keyword.id,
@@ -95,9 +83,6 @@ export async function runScrapeForKeyword(keywordTerm: string): Promise<RunScrap
   // 3) Normalize.
   const { posts, standaloneComments, warnings } = normalizeApifyItems(rawItems);
 
-  // 4) Store normalized posts + comments (status RECEIVED), skipping items
-  // we've already stored before (dedupe by sourceKey) so nothing gets
-  // analyzed twice.
   let postsCreated = 0;
   let postsSkipped = 0;
   let commentsCreated = 0;
@@ -119,7 +104,6 @@ export async function runScrapeForKeyword(keywordTerm: string): Promise<RunScrap
     const existing = await prisma.post.findUnique({ where: { sourceKey } });
     if (existing) {
       postsSkipped++;
-      // Still process any newly-seen nested comments under this post.
       for (const c of post.comments) {
         const r = await upsertComment(c, term, keyword.id, scrapeRun.id, existing.id);
         if (r.created) { commentsCreated++; createdCommentIds.push(r.id); } else commentsSkipped++;
@@ -159,7 +143,7 @@ export async function runScrapeForKeyword(keywordTerm: string): Promise<RunScrap
     if (r.created) { commentsCreated++; createdCommentIds.push(r.id); } else commentsSkipped++;
   }
 
-  // 5) AI sentiment analysis — only now, after everything above succeeded.
+  // 5) AI sentiment analysis — send email on new negative mentions
   let analyzed = 0;
   let failed = 0;
   for (const id of createdPostIds) {
@@ -228,9 +212,9 @@ async function upsertComment(
   return { created: true, id: created.id };
 }
 
-/** Analyzes a single post by id. Returns true if it ended ANALYZED. */
+/** Analyzes a single post by id. Returns true if it ended ANALYZED. Sends email alert for negative post. */
 export async function analyzePost(id: string): Promise<boolean> {
-  const post = await prisma.post.findUnique({ where: { id } });
+  const post = await prisma.post.findUnique({ where: { id }, include: { keyword: true } });
   if (!post) return false;
 
   if (!post.text || !post.text.trim()) {
@@ -254,6 +238,26 @@ export async function analyzePost(id: string): Promise<boolean> {
         analyzedAt: new Date(),
       },
     });
+
+    if (result.sentiment === "NEGATIVE" && !(post as any).alertSent) {
+      const platform = post.platform || (post.url?.includes("quora") ? "quora" : post.url?.includes("teamblind") ? "teamblind" : "reddit");
+      await sendNegativeMentionAlert({
+        type: "post",
+        keyword: post.keyword.term,
+        platform,
+        text: post.text,
+        author: post.author || "Anonymous",
+        url: post.url || "",
+        sentiment: "NEGATIVE",
+        confidence: result.confidence,
+        publishedAt: post.publishedAt || post.createdAt,
+      });
+      await (prisma.post as any).update({
+        where: { id },
+        data: { alertSent: true },
+      });
+    }
+
     return true;
   } catch (err) {
     await prisma.post.update({
@@ -267,9 +271,9 @@ export async function analyzePost(id: string): Promise<boolean> {
   }
 }
 
-/** Analyzes a single comment by id. Returns true if it ended ANALYZED. */
+/** Analyzes a single comment by id. Returns true if it ended ANALYZED. Sends email alert for negative comment. */
 export async function analyzeComment(id: string): Promise<boolean> {
-  const comment = await prisma.comment.findUnique({ where: { id } });
+  const comment = await prisma.comment.findUnique({ where: { id }, include: { keyword: true, post: true } });
   if (!comment) return false;
 
   if (!comment.text || !comment.text.trim()) {
@@ -293,6 +297,26 @@ export async function analyzeComment(id: string): Promise<boolean> {
         analyzedAt: new Date(),
       },
     });
+
+    if (result.sentiment === "NEGATIVE" && !(comment as any).alertSent) {
+      const platform = comment.post?.platform || (comment.url?.includes("quora") ? "quora" : comment.url?.includes("teamblind") ? "teamblind" : "reddit");
+      await sendNegativeMentionAlert({
+        type: "comment",
+        keyword: comment.keyword.term,
+        platform,
+        text: comment.text,
+        author: comment.author || "Anonymous",
+        url: comment.url || comment.post?.url || "",
+        sentiment: "NEGATIVE",
+        confidence: result.confidence,
+        publishedAt: comment.publishedAt || comment.createdAt,
+      });
+      await (prisma.comment as any).update({
+        where: { id },
+        data: { alertSent: true },
+      });
+    }
+
     return true;
   } catch (err) {
     await prisma.comment.update({
