@@ -1,0 +1,133 @@
+// Prisma schema for the ORM Dashboard.
+// Default datasource is SQLite for zero-config local setup.
+// To switch to Postgres: change provider below to "postgresql" and set
+// DATABASE_URL to a postgresql:// connection string, then run
+// `npx prisma migrate dev`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support in Prisma, so ProcessingStatus and
+// Sentiment are plain Strings, constrained in application code (see
+// src/types/normalized.ts and the Prisma-adjacent constants below).
+// Valid ProcessingStatus values: RECEIVED | PROCESSING | ANALYZED | FAILED
+// Valid Sentiment values: POSITIVE | NEGATIVE | NEUTRAL
+
+// One keyword the user has searched for via the Apify scraper.
+model Keyword {
+  id        String   @id @default(cuid())
+  term      String   @unique
+  createdAt DateTime @default(now())
+
+  scrapeRuns ScrapeRun[]
+  posts      Post[]
+  comments   Comment[]
+}
+
+// One call out to the Apify API for a given keyword. Stores the untouched
+// raw response so original scraped data is never lost, even if
+// normalization or AI analysis later fails or changes.
+model ScrapeRun {
+  id          String   @id @default(cuid())
+  keywordId   String
+  keyword     Keyword  @relation(fields: [keywordId], references: [id])
+
+  status      String   @default("RECEIVED") // RECEIVED = raw data stored; PROCESSING/ANALYZED/FAILED reflect overall run progress
+  rawResponse String   // full, unmodified JSON response from Apify, as text
+  itemCount   Int      @default(0)
+  errorMessage String?
+
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  posts    Post[]
+  comments Comment[]
+
+  @@index([keywordId])
+}
+
+// A normalized social media post derived from one Apify dataset item.
+model Post {
+  id            String   @id @default(cuid())
+  sourceKey     String   @unique // stable dedupe key: platform id/url, or content hash fallback
+
+  keywordId     String
+  keyword       Keyword  @relation(fields: [keywordId], references: [id])
+  scrapeRunId   String
+  scrapeRun     ScrapeRun @relation(fields: [scrapeRunId], references: [id])
+
+  platform      String?  // inferred from data when possible (e.g. "twitter"), never assumed otherwise
+  text          String?
+  url           String?
+  author        String?
+  authorUrl     String?
+  publishedAt   DateTime?
+
+  likes         Int?
+  shares        Int?
+  commentsCount Int?
+
+  rawItem       String   // original Apify dataset item for this post, as JSON text
+
+  sentiment     String?
+  confidence    Float?
+  status        String   @default("RECEIVED")
+  processingError String?
+  analyzedAt    DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  comments      Comment[]
+
+  @@index([keywordId])
+  @@index([sentiment])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+// A normalized comment. May belong to a known Post (postId set) or be a
+// standalone comment item from Apify with no resolvable parent post.
+model Comment {
+  id            String   @id @default(cuid())
+  sourceKey     String   @unique
+
+  keywordId     String
+  keyword       Keyword  @relation(fields: [keywordId], references: [id])
+  scrapeRunId   String
+  scrapeRun     ScrapeRun @relation(fields: [scrapeRunId], references: [id])
+
+  postId        String?
+  post          Post?    @relation(fields: [postId], references: [id])
+
+  text          String?
+  url           String?
+  author        String?
+  authorUrl     String?
+  publishedAt   DateTime?
+
+  likes         Int?
+
+  rawItem       String
+
+  sentiment     String?
+  confidence    Float?
+  status        String   @default("RECEIVED")
+  processingError String?
+  analyzedAt    DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([keywordId])
+  @@index([postId])
+  @@index([sentiment])
+  @@index([status])
+  @@index([publishedAt])
+}
