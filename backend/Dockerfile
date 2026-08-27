@@ -8,17 +8,19 @@ RUN apt-get update && apt-get install -y curl gnupg && \
 
 WORKDIR /app
 
-# Copy all backend files
-COPY . .
+# Copy backend directory contents into /app
+COPY backend/ ./
 
-# Install Node dependencies without triggering postinstall prematurely
+# Install Node dependencies
 RUN npm install --ignore-scripts
 
 # Install Python Playwright package
 RUN pip3 install --no-cache-dir playwright
 
-# Generate Prisma Client & Build TypeScript
-RUN npx prisma generate
+# Generate Prisma Client with explicit schema path
+RUN npx prisma generate --schema=prisma/schema.prisma
+
+# Build TypeScript to dist/server.js
 RUN npm run build
 
 EXPOSE 4000
