@@ -27,7 +27,11 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "10mb" }));
 
-app.get("/api/health", (_req, res) => {
+app.get("/", (_req, res) => {
+  res.json({ ok: true, message: "ORM Dashboard API Server is Live!" });
+});
+
+app.get(["/health", "/api/health"], (_req, res) => {
   res.json({
     ok: true,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
@@ -35,13 +39,14 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.use("/api/settings", settingsRouter);
-app.use("/api/manual-scraper", manualScraperRouter);
-app.use("/api/platform-keywords", platformKeywordsRouter);
-app.use("/api/keywords", keywordsRouter);
-app.use("/api/retry", retryRouter);
-app.use("/api", itemsRouter);
-app.use("/api/charts", chartsRouter);
+// Dual mount /api and root routes for 100% path compatibility
+app.use(["/api/settings", "/settings"], settingsRouter);
+app.use(["/api/manual-scraper", "/manual-scraper"], manualScraperRouter);
+app.use(["/api/platform-keywords", "/platform-keywords"], platformKeywordsRouter);
+app.use(["/api/keywords", "/keywords"], keywordsRouter);
+app.use(["/api/retry", "/retry"], retryRouter);
+app.use(["/api/charts", "/charts"], chartsRouter);
+app.use(["/api", "/"], itemsRouter);
 
 // Central error handler — return actual message for clean diagnostics
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
