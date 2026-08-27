@@ -100,9 +100,20 @@ def main():
     
     try:
         with sync_playwright() as p:
-            browser = p.firefox.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-accelerated-2d-canvas",
+                    "--no-first-run",
+                    "--no-zygote",
+                    "--disable-gpu",
+                ]
+            )
             context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 locale="en-US",
                 extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                 viewport={"width": 1280, "height": 800}

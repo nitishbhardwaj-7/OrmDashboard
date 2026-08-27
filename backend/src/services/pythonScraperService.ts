@@ -52,8 +52,11 @@ function runSinglePlatformScraper(options: PythonScraperOptions): Promise<any[]>
     args.push("--url", options.url.trim());
   }
 
+  // Use python3 on Linux/macOS or fallback to python
+  const pythonCmd = process.env.PYTHON_EXECUTABLE || (process.platform === "win32" ? "python" : "python3");
+
   return new Promise((resolve, reject) => {
-    const pythonProc = spawn("python", [scriptPath, ...args], {
+    const pythonProc = spawn(pythonCmd, [scriptPath, ...args], {
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     });
 
@@ -69,6 +72,25 @@ function runSinglePlatformScraper(options: PythonScraperOptions): Promise<any[]>
     });
 
     pythonProc.on("error", (err) => {
+      // Fallback try 'python' if 'python3' command failed
+      if (pythonCmd === "python3") {
+        const fallbackProc = spawn("python", [scriptPath, ...args], {
+          env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+        });
+        let fbStdout = "";
+        let fbStderr = "";
+        fallbackProc.stdout.on("data", (c) => (fbStdout += c.toString("utf-8")));
+        fallbackProc.stderr.on("data", (c) => (fbStderr += c.toString("utf-8")));
+        fallbackProc.on("close", (code) => {
+          if (code !== 0) return reject(new Error(`Python scraper (${scriptName}) exited with code ${code}. Stderr: ${fbStderr}`));
+          try {
+            resolve(JSON.parse(fbStdout.trim() || "[]"));
+          } catch (e: any) {
+            reject(new Error(`Failed to parse output: ${e.message}`));
+          }
+        });
+        return;
+      }
       reject(new Error(`Failed to start Python scraper process (${scriptName}): ${err.message}`));
     });
 
