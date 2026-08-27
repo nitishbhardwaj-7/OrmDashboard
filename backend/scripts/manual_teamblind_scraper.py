@@ -213,6 +213,7 @@ def main():
 
     except Exception as err:
         sys.stderr.write(f"TeamBlind scraper error: {str(err)}\n")
+        sys.exit(1)
 
     print(json.dumps(items, ensure_ascii=False))
 

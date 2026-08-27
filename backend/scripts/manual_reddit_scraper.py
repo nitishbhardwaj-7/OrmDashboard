@@ -169,7 +169,8 @@ def main():
             browser.close()
 
     except Exception as err:
-        sys.stderr.write(f"Scraper error: {str(err)}\n")
+        sys.stderr.write(f"Reddit scraper error: {str(err)}\n")
+        sys.exit(1)
 
     # Output JSON array to stdout with UTF-8 encoding
     print(json.dumps(items, ensure_ascii=False))
