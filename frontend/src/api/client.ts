@@ -4,12 +4,15 @@ import type {
   ItemsResponse,
   ItemFiltersQuery,
   SentimentByKeywordRow,
+  SentimentByPlatformRow,
   SentimentOverTimeRow,
   ScrapeResult,
   SearchResponse,
   DashboardSettings,
   ManualScrapePayload,
   ManualScrapeResult,
+  PlatformKeywordCard,
+  CronStatus,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
@@ -70,7 +73,7 @@ export const api = {
       deletedKeywords: number;
     }>("/settings/reset-database", { method: "POST" }),
 
-  getOverview: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+  getOverview: (keyword?: string, platform?: ItemFiltersQuery["platform"], dateFrom?: string, dateTo?: string) =>
     request<Overview>(`/overview${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   getKeywords: () => request<{ keywords: KeywordSummary[] }>("/keywords"),
@@ -90,7 +93,7 @@ export const api = {
 
   search: (q: string) => request<SearchResponse>(`/search?q=${encodeURIComponent(q)}`),
 
-  getDistribution: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+  getDistribution: (keyword?: string, platform?: ItemFiltersQuery["platform"], dateFrom?: string, dateTo?: string) =>
     request<Overview>(`/charts/distribution${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   getByKeyword: () => request<SentimentByKeywordRow[]>("/charts/by-keyword"),
@@ -98,7 +101,7 @@ export const api = {
   getByPlatform: (keyword?: string, dateFrom?: string, dateTo?: string) =>
     request<SentimentByPlatformRow[]>(`/charts/by-platform${toQuery({ keyword, dateFrom, dateTo })}`),
 
-  getOverTime: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+  getOverTime: (keyword?: string, platform?: ItemFiltersQuery["platform"], dateFrom?: string, dateTo?: string) =>
     request<SentimentOverTimeRow[]>(`/charts/over-time${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   retryPost: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/post/${id}`, { method: "POST" }),
