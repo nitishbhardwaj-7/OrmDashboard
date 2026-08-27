@@ -3,6 +3,7 @@ import { runScrapeForKeyword, PipelineError } from "../services/pipelineService"
 import { getKeywords } from "../services/queryService";
 import { ApifyError } from "../services/apifyService";
 import { ConfigError } from "../config/env";
+import { prisma } from "../lib/prisma";
 
 export const keywordsRouter = Router();
 
@@ -35,5 +36,20 @@ keywordsRouter.post("/scrape", async (req, res) => {
     }
     console.error(err);
     res.status(500).json({ error: "Unexpected server error while running the scrape pipeline." });
+  }
+});
+
+// DELETE /api/keywords/:id — delete a keyword and its associated items
+keywordsRouter.delete("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await prisma.comment.deleteMany({ where: { keywordId: id } });
+    await prisma.post.deleteMany({ where: { keywordId: id } });
+    await prisma.scrapeRun.deleteMany({ where: { keywordId: id } });
+    await prisma.keyword.delete({ where: { id } });
+
+    res.json({ ok: true, message: "Keyword deleted successfully." });
+  } catch (err) {
+    next(err);
   }
 });

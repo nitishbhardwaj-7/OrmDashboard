@@ -63,7 +63,7 @@ export interface ItemFiltersQuery {
   keyword?: string;
   sentiment?: Sentiment;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
   dateFrom?: string;
   dateTo?: string;
   author?: string;
@@ -74,6 +74,10 @@ export interface ItemFiltersQuery {
 
 export interface SentimentByKeywordRow extends Overview {
   keyword: string;
+}
+
+export interface SentimentByPlatformRow extends Overview {
+  platform: string;
 }
 
 export interface SentimentOverTimeRow {
@@ -119,7 +123,7 @@ export interface ManualScrapePayload {
   keyword: string;
   url?: string;
   limit?: number;
-  platform?: "reddit" | "quora" | "teamblind" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
 }
 
 export interface ManualScrapeResult {
@@ -137,6 +141,34 @@ export interface ManualScrapeResult {
   message?: string;
   posts?: PostItem[];
   comments?: CommentItem[];
+}
+
+export interface PlatformKeywordCard {
+  id: string;
+  platform: "reddit" | "quora" | "teamblind" | "trustpilot";
+  keyword: string;
+  searchUrl?: string;
+  enabled: boolean;
+  lastRunAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CronLogItem {
+  timestamp: string;
+  platform: string;
+  keyword: string;
+  status: "SUCCESS" | "FAILED";
+  newItems: number;
+  message: string;
+}
+
+export interface CronStatus {
+  isRunning: boolean;
+  cronEnabled: boolean;
+  lastCronRunAt?: string;
+  nextCronRunAt?: string;
+  logs: CronLogItem[];
 }
 
 

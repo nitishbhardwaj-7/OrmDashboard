@@ -70,9 +70,12 @@ export const api = {
       deletedKeywords: number;
     }>("/settings/reset-database", { method: "POST" }),
 
-  getOverview: (keyword?: string) => request<Overview>(`/overview${toQuery({ keyword })}`),
+  getOverview: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+    request<Overview>(`/overview${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   getKeywords: () => request<{ keywords: KeywordSummary[] }>("/keywords"),
+
+  deleteKeyword: (id: string) => request<{ ok: boolean; message: string }>(`/keywords/${id}`, { method: "DELETE" }),
 
   scrapeKeyword: (keyword: string) =>
     request<ScrapeResult>("/keywords/scrape", { method: "POST", body: JSON.stringify({ keyword }) }),
@@ -87,11 +90,16 @@ export const api = {
 
   search: (q: string) => request<SearchResponse>(`/search?q=${encodeURIComponent(q)}`),
 
-  getDistribution: (keyword?: string) => request<Overview>(`/charts/distribution${toQuery({ keyword })}`),
+  getDistribution: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+    request<Overview>(`/charts/distribution${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   getByKeyword: () => request<SentimentByKeywordRow[]>("/charts/by-keyword"),
 
-  getOverTime: (keyword?: string) => request<SentimentOverTimeRow[]>(`/charts/over-time${toQuery({ keyword })}`),
+  getByPlatform: (keyword?: string, dateFrom?: string, dateTo?: string) =>
+    request<SentimentByPlatformRow[]>(`/charts/by-platform${toQuery({ keyword, dateFrom, dateTo })}`),
+
+  getOverTime: (keyword?: string, platform?: string, dateFrom?: string, dateTo?: string) =>
+    request<SentimentOverTimeRow[]>(`/charts/over-time${toQuery({ keyword, platform, dateFrom, dateTo })}`),
 
   retryPost: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/post/${id}`, { method: "POST" }),
   retryComment: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/comment/${id}`, { method: "POST" }),
@@ -103,4 +111,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  getPlatformCards: () => request<{ cards: PlatformKeywordCard[] }>("/platform-keywords"),
+
+  createPlatformCard: (data: { platform: string; keyword: string; searchUrl?: string }) =>
+    request<{ ok: boolean; card: PlatformKeywordCard }>("/platform-keywords", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deletePlatformCard: (id: string) =>
+    request<{ ok: boolean; message: string }>(`/platform-keywords/${id}`, { method: "DELETE" }),
+
+  togglePlatformCard: (id: string) =>
+    request<{ ok: boolean; card: PlatformKeywordCard }>(`/platform-keywords/${id}/toggle`, { method: "PATCH" }),
+
+  runPlatformCardNow: (id: string) =>
+    request<{ ok: boolean; result: ManualScrapeResult }>(`/platform-keywords/run-card/${id}`, { method: "POST" }),
+
+  runAllPlatformCardsNow: () =>
+    request<{ ok: boolean; message: string; newItems?: number }>("/platform-keywords/run-all", { method: "POST" }),
+
+  getCronStatus: () => request<CronStatus>("/platform-keywords/cron-status"),
 };

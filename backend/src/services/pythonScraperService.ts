@@ -5,22 +5,24 @@ export interface PythonScraperOptions {
   keyword: string;
   url?: string;
   limit?: number;
-  platform?: "reddit" | "quora" | "teamblind" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
 }
 
 export async function runPythonSocialScraper(options: PythonScraperOptions): Promise<any[]> {
   const platform = options.platform ?? "reddit";
 
   if (platform === "all") {
-    const [redditItems, quoraItems, blindItems] = await Promise.allSettled([
+    const [redditItems, quoraItems, blindItems, trustpilotItems] = await Promise.allSettled([
       runSinglePlatformScraper({ ...options, platform: "reddit" }),
       runSinglePlatformScraper({ ...options, platform: "quora" }),
       runSinglePlatformScraper({ ...options, platform: "teamblind" }),
+      runSinglePlatformScraper({ ...options, platform: "trustpilot" }),
     ]);
     const rResult = redditItems.status === "fulfilled" ? redditItems.value : [];
     const qResult = quoraItems.status === "fulfilled" ? quoraItems.value : [];
     const bResult = blindItems.status === "fulfilled" ? blindItems.value : [];
-    return [...rResult, ...qResult, ...bResult];
+    const tResult = trustpilotItems.status === "fulfilled" ? trustpilotItems.value : [];
+    return [...rResult, ...qResult, ...bResult, ...tResult];
   }
 
   return runSinglePlatformScraper(options);
@@ -37,11 +39,13 @@ function runSinglePlatformScraper(options: PythonScraperOptions): Promise<any[]>
     scriptName = "manual_quora_scraper.py";
   } else if (options.platform === "teamblind" || url.includes("teamblind.com")) {
     scriptName = "manual_teamblind_scraper.py";
+  } else if (options.platform === "trustpilot" || url.includes("trustpilot.com")) {
+    scriptName = "manual_trustpilot_scraper.py";
   }
 
   const scriptPath = path.resolve(__dirname, `../../scripts/${scriptName}`);
-  const keyword = options.keyword.trim() || "eb1aexpert";
-  const limit = options.limit ?? 20;
+  const keyword = options.keyword.trim() || "eb1aexperts.com";
+  const limit = options.limit ?? 100;
 
   const args = ["--keyword", keyword, "--limit", String(limit)];
   if (options.url && options.url.trim()) {

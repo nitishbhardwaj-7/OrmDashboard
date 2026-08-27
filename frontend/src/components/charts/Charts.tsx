@@ -76,22 +76,72 @@ export function SentimentByKeywordChart({ data }: { data: SentimentByKeywordRow[
   );
 }
 
-export function KeywordSentimentBars({ row }: { row: SentimentByKeywordRow }) {
+export function KeywordSentimentBars({
+  row,
+  onDelete,
+}: {
+  row: SentimentByKeywordRow;
+  onDelete?: (keyword: string) => void;
+}) {
   const bars = [
     { label: "Positive", pct: row.positivePct, color: COLORS.POSITIVE },
     { label: "Neutral", pct: row.neutralPct, color: COLORS.NEUTRAL },
     { label: "Negative", pct: row.negativePct, color: COLORS.NEGATIVE },
   ];
   return (
-    <div>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>{row.keyword}</div>
+    <div style={{ background: "var(--bg-panel-alt)", padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>{row.keyword}</div>
+        {onDelete && (
+          <button
+            type="button"
+            title="Delete keyword"
+            onClick={() => onDelete(row.keyword)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#f87171",
+              fontSize: 12,
+              cursor: "pointer",
+              padding: "2px 6px",
+              opacity: 0.8,
+            }}
+          >
+            🗑
+          </button>
+        )}
+      </div>
       {bars.map((b) => (
         <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 12 }}>
           <span style={{ width: 56, color: "var(--text-dim)" }}>{b.label}</span>
-          <div style={{ flex: 1, background: "var(--bg-panel-alt)", borderRadius: 4, height: 10, overflow: "hidden" }}>
+          <div style={{ flex: 1, background: "var(--bg-panel)", borderRadius: 4, height: 10, overflow: "hidden" }}>
             <div style={{ width: `${b.pct}%`, background: b.color, height: "100%" }} />
           </div>
-          <span style={{ width: 40, textAlign: "right" }}>{b.pct}%</span>
+          <span style={{ width: 40, textAlign: "right", fontWeight: 600 }}>{b.pct}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function PlatformSentimentBars({ row }: { row: SentimentByPlatformRow }) {
+  const bars = [
+    { label: "Positive", pct: row.positivePct, color: COLORS.POSITIVE },
+    { label: "Neutral", pct: row.neutralPct, color: COLORS.NEUTRAL },
+    { label: "Negative", pct: row.negativePct, color: COLORS.NEGATIVE },
+  ];
+  return (
+    <div style={{ background: "var(--bg-panel-alt)", padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border)" }}>
+      <div style={{ fontWeight: 600, marginBottom: 8, textTransform: "uppercase", fontSize: 13, letterSpacing: 0.5, color: "var(--text)" }}>
+        {row.platform} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-dim)", textTransform: "none" }}>({row.totalMentions} items)</span>
+      </div>
+      {bars.map((b) => (
+        <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 12 }}>
+          <span style={{ width: 56, color: "var(--text-dim)" }}>{b.label}</span>
+          <div style={{ flex: 1, background: "var(--bg-panel)", borderRadius: 4, height: 10, overflow: "hidden" }}>
+            <div style={{ width: `${b.pct}%`, background: b.color, height: "100%" }} />
+          </div>
+          <span style={{ width: 40, textAlign: "right", fontWeight: 600 }}>{b.pct}%</span>
         </div>
       ))}
     </div>

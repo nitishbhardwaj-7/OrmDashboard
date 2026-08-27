@@ -1,81 +1,130 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { ManualScrapeResult } from "../api/types";
+import type { ManualScrapeResult, PlatformKeywordCard, CronStatus } from "../api/types";
 import { ItemList } from "../components/ItemList";
 
 export function ManualScraperPage() {
-  const [platform, setPlatform] = useState<"reddit" | "quora" | "teamblind" | "all">("reddit");
-  const [keyword, setKeyword] = useState("eb1a");
-  const [searchUrl, setSearchUrl] = useState(
-    "https://www.reddit.com/search/?type=comments&q=eb1a&sort=relevance&safe=0"
-  );
-  const [loading, setLoading] = useState(false);
+  const [platform, setPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "all">("reddit");
+  const [cards, setCards] = useState<PlatformKeywordCard[]>([]);
+  const [cronStatus, setCronStatus] = useState<CronStatus | null>(null);
+
+  // New card creation form state
+  const [newKeyword, setNewKeyword] = useState("");
+  const [newSearchUrl, setNewSearchUrl] = useState("");
+
+  const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
   const [progressStage, setProgressStage] = useState<string>("");
   const [result, setResult] = useState<ManualScrapeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  function handlePlatformChange(newPlatform: "reddit" | "quora" | "teamblind" | "all") {
+  useEffect(() => {
+    loadCardsAndStatus();
+  }, []);
+
+  async function loadCardsAndStatus() {
+    try {
+      const [cRes, csRes] = await Promise.all([
+        api.getPlatformCards(),
+        api.getCronStatus(),
+      ]);
+      setCards(cRes.cards);
+      setCronStatus(csRes);
+    } catch (err) {
+      console.error("Failed to load platform cards:", err);
+    }
+  }
+
+  function handlePlatformChange(newPlatform: "reddit" | "quora" | "teamblind" | "trustpilot" | "all") {
     setPlatform(newPlatform);
-    const encoded = encodeURIComponent(keyword.trim() || "eb1a");
-    if (newPlatform === "quora") {
-      setSearchUrl(`https://www.quora.com/search?q=${encoded}`);
-    } else if (newPlatform === "teamblind") {
-      setSearchUrl(`https://www.teamblind.com/search/${encoded}`);
-    } else if (newPlatform === "reddit") {
-      setSearchUrl(`https://www.reddit.com/search/?type=comments&q=${encoded}&sort=relevance&safe=0`);
-    } else {
-      setSearchUrl("");
-    }
+    setNewKeyword("");
+    setNewSearchUrl("");
   }
 
-  function updateKeyword(val: string) {
-    setKeyword(val);
-    const encoded = encodeURIComponent(val.trim());
-    if (platform === "quora") {
-      setSearchUrl(`https://www.quora.com/search?q=${encoded}`);
-    } else if (platform === "teamblind") {
-      setSearchUrl(`https://www.teamblind.com/search/${encoded}`);
-    } else if (platform === "reddit") {
-      setSearchUrl(`https://www.reddit.com/search/?type=comments&q=${encoded}&sort=relevance&safe=0`);
-    }
-  }
-
-  async function handleScrapeSubmit(e: React.FormEvent) {
+  async function handleAddCard(e: React.FormEvent) {
     e.preventDefault();
-    if (!keyword.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setProgressStage(`Launching Python Playwright scraper for ${platform.toUpperCase()}...`);
+    if (!newKeyword.trim()) return;
+    const targetPlatform = platform === "all" ? "reddit" : platform;
 
     try {
-      const stageTimer1 = setTimeout(() => {
-        setProgressStage(`Extracting posts & comments from ${platform.toUpperCase()}...`);
-      }, 4000);
-
-      const stageTimer2 = setTimeout(() => {
-        setProgressStage("Running AI Sentiment Analysis & saving items to database...");
-      }, 10000);
-
-      const data = await api.runManualScrape({
-        keyword: keyword.trim(),
-        url: searchUrl.trim() || undefined,
-        limit: 100,
-        platform,
+      setError(null);
+      setSuccessBanner(null);
+      await api.createPlatformCard({
+        platform: targetPlatform,
+        keyword: newKeyword.trim(),
+        searchUrl: newSearchUrl.trim() || undefined,
       });
-
-      clearTimeout(stageTimer1);
-      clearTimeout(stageTimer2);
-
-      setResult(data);
+      setNewKeyword("");
+      setNewSearchUrl("");
+      setSuccessBanner(`✓ Added new ${targetPlatform.toUpperCase()} card for "${newKeyword.trim()}"`);
+      await loadCardsAndStatus();
     } catch (err: any) {
-      setError(err.message || "Failed to execute manual Python scraper.");
+      setError(err.message || "Failed to add keyword card.");
+    }
+  }
+
+  async function handleToggleCard(id: string) {
+    try {
+      await api.togglePlatformCard(id);
+      await loadCardsAndStatus();
+    } catch (err: any) {
+      setError(err.message || "Failed to toggle card.");
+    }
+  }
+
+  async function handleDeleteCard(id: string) {
+    if (!window.confirm("Are you sure you want to remove this keyword card?")) return;
+    try {
+      await api.deletePlatformCard(id);
+      await loadCardsAndStatus();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete card.");
+    }
+  }
+
+  async function handleRunCard(card: PlatformKeywordCard) {
+    setLoadingCardId(card.id);
+    setError(null);
+    setSuccessBanner(null);
+    setResult(null);
+    setProgressStage(`Running Playwright scraper for ${card.platform.toUpperCase()} keyword "${card.keyword}"...`);
+
+    try {
+      const res = await api.runPlatformCardNow(card.id);
+      setResult(res.result);
+      const newItems = (res.result.postsCreated || 0) + (res.result.commentsCreated || 0);
+      setSuccessBanner(`✓ Scraped ${card.platform.toUpperCase()} for "${card.keyword}" — Added ${newItems} new mentions (${(res.result.postsSkippedExisting || 0) + (res.result.commentsSkippedExisting || 0)} duplicates skipped).`);
+      await loadCardsAndStatus();
+    } catch (err: any) {
+      setError(err.message || `Failed to scrape ${card.platform}.`);
     } finally {
-      setLoading(false);
+      setLoadingCardId(null);
       setProgressStage("");
     }
   }
+
+  async function handleRunAllCards() {
+    setRunningAll(true);
+    setError(null);
+    setSuccessBanner(null);
+    setResult(null);
+    setProgressStage("Running automated scraper cycle for ALL platform keyword cards...");
+
+    try {
+      const res = await api.runAllPlatformCardsNow();
+      setSuccessBanner(`✓ Full platform cycle completed! ${res.message}`);
+      await loadCardsAndStatus();
+    } catch (err: any) {
+      setError(err.message || "Failed to run all cards.");
+    } finally {
+      setRunningAll(false);
+      setProgressStage("");
+    }
+  }
+
+  // Filter cards for active platform tab
+  const activeCards = cards.filter((c) => (platform === "all" ? true : c.platform === platform));
 
   const feedItems = [
     ...(result?.posts ?? []).map((p) => ({ ...p, type: "post" as const })),
@@ -84,20 +133,101 @@ export function ManualScraperPage() {
 
   return (
     <div style={{ maxWidth: 960 }}>
-      <div className="page-header">
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2>Manual Social Scraper (Reddit, Quora &amp; TeamBlind)</h2>
+          <h2>Social Scraper Engine &amp; Keyword Cards</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Scrape posts, questions, and comment threads directly from Reddit, Quora, or TeamBlind using Python Playwright, with live AI sentiment analysis.
+            Manage keyword cards for Reddit, Quora, TeamBlind &amp; Trustpilot. Scrapers run automatically every 1 hour in background.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleRunAllCards}
+          disabled={runningAll || loadingCardId !== null}
+          style={{
+            background: "var(--accent)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "8px 16px",
+            fontWeight: 600,
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {runningAll ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "⚡"}
+          {runningAll ? "Scraping All Platforms…" : "Run All Cards Now"}
+        </button>
       </div>
 
-      {/* Platform Selector & Scraper Form */}
+      {/* Success Breadcrumb Banner */}
+      {successBanner && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: "12px 16px",
+            background: "rgba(51, 193, 122, 0.12)",
+            border: "1px solid rgba(51, 193, 122, 0.4)",
+            borderRadius: 8,
+            color: "#33c17a",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          <span>{successBanner}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessBanner(null)}
+            style={{ background: "transparent", border: "none", color: "#33c17a", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Hourly Background Cron Status Banner */}
+      <div
+        className="card"
+        style={{
+          marginBottom: 24,
+          background: "rgba(51, 193, 122, 0.06)",
+          border: "1px solid rgba(51, 193, 122, 0.3)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "14px 20px",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#33c17a" }}>
+              ⏰ Automated 1-Hour Background Cron Scraper: ACTIVE
+            </span>
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-dim)" }}>
+            Automatically scrapes every active keyword card across Reddit, Quora, TeamBlind, and Trustpilot every 60 minutes with live AI sentiment analysis and instant Resend email alerts.
+          </p>
+        </div>
+
+        {cronStatus?.nextCronRunAt && (
+          <div style={{ textAlign: "right", fontSize: 12, color: "var(--text-dim)" }}>
+            <div>Next scheduled run:</div>
+            <strong style={{ color: "var(--text)" }}>{new Date(cronStatus.nextCronRunAt).toLocaleTimeString()}</strong>
+          </div>
+        )}
+      </div>
+
+      {/* Platform Selector Chips */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase" }}>
-            Select Target Platform
+            Select Scraper Window / Platform
           </label>
           <div className="preset-chips" style={{ marginTop: 8 }}>
             <button
@@ -106,7 +236,7 @@ export function ManualScraperPage() {
               onClick={() => handlePlatformChange("reddit")}
               style={{ fontSize: 13, padding: "6px 14px" }}
             >
-              Reddit
+              Reddit Cards ({cards.filter((c) => c.platform === "reddit").length})
             </button>
             <button
               type="button"
@@ -114,7 +244,7 @@ export function ManualScraperPage() {
               onClick={() => handlePlatformChange("quora")}
               style={{ fontSize: 13, padding: "6px 14px" }}
             >
-              Quora
+              Quora Cards ({cards.filter((c) => c.platform === "quora").length})
             </button>
             <button
               type="button"
@@ -122,7 +252,15 @@ export function ManualScraperPage() {
               onClick={() => handlePlatformChange("teamblind")}
               style={{ fontSize: 13, padding: "6px 14px" }}
             >
-              TeamBlind
+              TeamBlind Cards ({cards.filter((c) => c.platform === "teamblind").length})
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${platform === "trustpilot" ? "active" : ""}`}
+              onClick={() => handlePlatformChange("trustpilot")}
+              style={{ fontSize: 13, padding: "6px 14px" }}
+            >
+              Trustpilot Cards ({cards.filter((c) => c.platform === "trustpilot").length})
             </button>
             <button
               type="button"
@@ -130,85 +268,171 @@ export function ManualScraperPage() {
               onClick={() => handlePlatformChange("all")}
               style={{ fontSize: 13, padding: "6px 14px" }}
             >
-              All Platforms (Reddit + Quora + TeamBlind)
+              All Keyword Cards ({cards.length})
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleScrapeSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+        {/* Form to Add New Keyword Card for Selected Platform */}
+        <form onSubmit={handleAddCard} style={{ background: "var(--bg-panel-alt)", padding: 16, borderRadius: 8, border: "1px solid var(--border)" }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>
+            ➕ Add New Keyword Card for {platform === "all" ? "REDDIT" : platform.toUpperCase()}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: 12, alignItems: "end" }}>
             <div className="settings-form-group">
-              <label htmlFor="manualKeyword">Search Keyword</label>
+              <label htmlFor="newKeyword">Search Keyword / Domain</label>
               <input
-                id="manualKeyword"
+                id="newKeyword"
                 type="text"
-                value={keyword}
-                onChange={(e) => updateKeyword(e.target.value)}
-                placeholder="e.g. eb1a or eb1aexpert"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                placeholder="e.g. eb1aexperts.com or eb1a"
                 required
               />
             </div>
 
             <div className="settings-form-group">
-              <label htmlFor="searchUrl">Target Search URL</label>
+              <label htmlFor="newSearchUrl">Custom Search / Review URL (Optional)</label>
               <input
-                id="searchUrl"
+                id="newSearchUrl"
                 type="text"
-                value={searchUrl}
-                onChange={(e) => setSearchUrl(e.target.value)}
-                placeholder={
-                  platform === "teamblind"
-                    ? "https://www.teamblind.com/search/eb1aexpert"
-                    : platform === "quora"
-                    ? "https://www.quora.com/search?q=eb1a"
-                    : "https://www.reddit.com/search/?type=comments&q=..."
-                }
+                value={newSearchUrl}
+                onChange={(e) => setNewSearchUrl(e.target.value)}
+                placeholder="Leave blank for automatic URL generation"
               />
             </div>
-          </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-            <span className="field-hint">
-              {platform === "teamblind"
-                ? "Scrapes TeamBlind posts and comment threads matching your query."
-                : platform === "quora"
-                ? "Scrapes Quora questions and answer entries matching your query."
-                : "Scrapes Reddit posts and comment trees matching your query."}
-            </span>
-
-            <button type="submit" disabled={loading} style={{ minWidth: 190, height: 38 }}>
-              {loading ? (
-                <>
-                  <span className="spinner" style={{ marginRight: 8 }} />
-                  Scraping {platform.toUpperCase()}…
-                </>
-              ) : (
-                `🚀 Run ${platform === "all" ? "Social" : platform.toUpperCase()} Scraper`
-              )}
+            <button type="submit" style={{ height: 38, padding: "0 16px", minWidth: 120 }}>
+              Add Card
             </button>
           </div>
         </form>
+      </div>
 
-        {loading && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: "12px 16px",
-              background: "rgba(91, 141, 239, 0.12)",
-              border: "1px solid rgba(91, 141, 239, 0.3)",
-              borderRadius: "var(--radius)",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              fontSize: 13,
-              color: "#bcd2ff",
-            }}
-          >
-            <span className="spinner" style={{ width: 16, height: 16 }} />
-            <span>{progressStage}</span>
+      {/* Keyword Cards Display */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 14 }}>
+          {platform === "all" ? "All Platform Keyword Cards" : `${platform.toUpperCase()} Keyword Cards`} ({activeCards.length})
+        </h3>
+
+        {activeCards.length === 0 ? (
+          <div className="empty-state">No keyword cards added for this platform yet. Use the form above to add one.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+            {activeCards.map((card) => (
+              <div
+                key={card.id}
+                className="card"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  position: "relative",
+                  borderLeft: `4px solid ${
+                    card.platform === "reddit"
+                      ? "#ff4500"
+                      : card.platform === "quora"
+                      ? "#b92b27"
+                      : card.platform === "teamblind"
+                      ? "#00a4e4"
+                      : "#00b67a"
+                  }`,
+                  opacity: card.enabled ? 1 : 0.6,
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        background: "var(--bg-panel-alt)",
+                        color: "var(--text-dim)",
+                      }}
+                    >
+                      {card.platform}
+                    </span>
+
+                    {/* Enable / Disable Toggle Switch */}
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={card.enabled}
+                        onChange={() => handleToggleCard(card.id)}
+                      />
+                      <span>{card.enabled ? "Active" : "Paused"}</span>
+                    </label>
+                  </div>
+
+                  <h4 style={{ margin: "0 0 6px", fontSize: 15, color: "var(--text)" }}>{card.keyword}</h4>
+
+                  {card.searchUrl && (
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", wordBreak: "break-all", marginBottom: 12 }}>
+                      {card.searchUrl}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>
+                    Last scraped: {card.lastRunAt ? new Date(card.lastRunAt).toLocaleTimeString() : "Never run"}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleRunCard(card)}
+                    disabled={loadingCardId === card.id || runningAll}
+                    style={{ flex: 1, padding: "8px 12px", fontSize: 12, height: 34 }}
+                  >
+                    {loadingCardId === card.id ? (
+                      <>
+                        <span className="spinner" style={{ marginRight: 6, width: 12, height: 12 }} />
+                        Scraping…
+                      </>
+                    ) : (
+                      "🚀 Run Scraper"
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => handleDeleteCard(card.id)}
+                    disabled={loadingCardId === card.id || runningAll}
+                    style={{ padding: "8px 12px", fontSize: 12, height: 34, color: "#f87171" }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      {progressStage && (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: "12px 16px",
+            background: "rgba(91, 141, 239, 0.12)",
+            border: "1px solid rgba(91, 141, 239, 0.3)",
+            borderRadius: "var(--radius)",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            fontSize: 13,
+            color: "#bcd2ff",
+          }}
+        >
+          <span className="spinner" style={{ width: 16, height: 16 }} />
+          <span>{progressStage}</span>
+        </div>
+      )}
 
       {error && (
         <div className="banner warn" style={{ marginBottom: 24 }}>
@@ -226,24 +450,20 @@ export function ManualScraperPage() {
               <div className="sub">
                 {(result.postsSkippedExisting ?? 0) + (result.commentsSkippedExisting ?? 0) > 0
                   ? `${(result.postsSkippedExisting ?? 0) + (result.commentsSkippedExisting ?? 0)} duplicate items skipped`
-                  : `Scraped from ${platform.toUpperCase()}`}
+                  : `Scraped from ${result.keyword}`}
               </div>
             </div>
 
             <div className="stat-card">
-              <div className="label">Posts / Questions</div>
+              <div className="label">Posts Created</div>
               <div className="value">{result.postsCreated}</div>
-              <div className="sub">
-                {result.postsSkippedExisting ? `${result.postsSkippedExisting} existing skipped` : `${result.posts?.length ?? 0} total stored`}
-              </div>
+              <div className="sub">{result.postsSkippedExisting ?? 0} existing skipped</div>
             </div>
 
             <div className="stat-card">
-              <div className="label">Comments / Answers</div>
+              <div className="label">Comments Created</div>
               <div className="value">{result.commentsCreated}</div>
-              <div className="sub">
-                {result.commentsSkippedExisting ? `${result.commentsSkippedExisting} existing skipped` : `${result.comments?.length ?? 0} total stored`}
-              </div>
+              <div className="sub">{result.commentsSkippedExisting ?? 0} existing skipped</div>
             </div>
 
             <div className="stat-card positive">
@@ -254,9 +474,9 @@ export function ManualScraperPage() {
           </div>
 
           <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>Scraped Items ({platform.toUpperCase()})</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Scraped Items ({result.keyword})</h3>
             <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Showing {feedItems.length} items for keyword &quot;{result.keyword}&quot;
+              Showing {feedItems.length} items
             </span>
           </div>
 

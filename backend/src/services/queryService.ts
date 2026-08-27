@@ -6,7 +6,7 @@ export interface ItemFilters {
   keyword?: string;
   sentiment?: SentimentValue;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
   dateFrom?: Date;
   dateTo?: Date;
   author?: string;
@@ -51,6 +51,8 @@ function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
     where.OR = [
       { post: { platform: f.platform } },
       { url: { contains: f.platform } },
+      { sourceKey: { contains: f.platform } },
+      { rawItem: { contains: f.platform } },
     ];
   }
   if (f.dateFrom || f.dateTo) {
@@ -69,14 +71,21 @@ function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
   return where;
 }
 
-export async function getOverview(keyword?: string) {
-  const kwFilter = keyword ? { keyword: { term: keyword } } : {};
+export async function getOverview(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
+  const f: ItemFilters = {
+    keyword,
+    platform: (platform && platform !== "all" ? platform : undefined) as any,
+    dateFrom,
+    dateTo,
+  };
+  const pWhere = postWhere(f);
+  const cWhere = commentWhere(f);
 
   const [totalPosts, totalComments, postAgg, commentAgg] = await Promise.all([
-    prisma.post.count({ where: kwFilter }),
-    prisma.comment.count({ where: kwFilter }),
-    prisma.post.groupBy({ by: ["sentiment"], where: kwFilter, _count: true }),
-    prisma.comment.groupBy({ by: ["sentiment"], where: kwFilter, _count: true }),
+    prisma.post.count({ where: pWhere }),
+    prisma.comment.count({ where: cWhere }),
+    prisma.post.groupBy({ by: ["sentiment"], where: pWhere, _count: true }),
+    prisma.comment.groupBy({ by: ["sentiment"], where: cWhere, _count: true }),
   ]);
 
   const counts: Record<string, number> = { POSITIVE: 0, NEGATIVE: 0, NEUTRAL: 0 };
@@ -154,8 +163,8 @@ export async function getKeywords() {
   });
 }
 
-export async function getSentimentDistribution(keyword?: string) {
-  return getOverview(keyword);
+export async function getSentimentDistribution(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
+  return getOverview(keyword, platform, dateFrom, dateTo);
 }
 
 export async function getSentimentByKeyword() {
@@ -168,15 +177,33 @@ export async function getSentimentByKeyword() {
   return results;
 }
 
-export async function getSentimentOverTime(keyword?: string, bucket: "day" = "day") {
-  const kwFilter = keyword ? { keyword: { term: keyword } } : {};
+export async function getSentimentByPlatform(keyword?: string, dateFrom?: Date, dateTo?: Date) {
+  const platforms = ["reddit", "quora", "teamblind", "trustpilot"];
+  const results = [];
+  for (const p of platforms) {
+    const overview = await getOverview(keyword, p, dateFrom, dateTo);
+    results.push({ platform: p, ...overview });
+  }
+  return results;
+}
+
+export async function getSentimentOverTime(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
+  const f: ItemFilters = {
+    keyword,
+    platform: (platform && platform !== "all" ? platform : undefined) as any,
+    dateFrom,
+    dateTo,
+  };
+  const pWhere = { ...postWhere(f), publishedAt: { not: null }, sentiment: { not: null } };
+  const cWhere = { ...commentWhere(f), publishedAt: { not: null }, sentiment: { not: null } };
+
   const [posts, comments] = await Promise.all([
     prisma.post.findMany({
-      where: { ...kwFilter, publishedAt: { not: null }, sentiment: { not: null } },
+      where: pWhere,
       select: { publishedAt: true, sentiment: true },
     }),
     prisma.comment.findMany({
-      where: { ...kwFilter, publishedAt: { not: null }, sentiment: { not: null } },
+      where: cWhere,
       select: { publishedAt: true, sentiment: true },
     }),
   ]);

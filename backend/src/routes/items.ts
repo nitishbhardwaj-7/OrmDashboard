@@ -20,7 +20,7 @@ function parseFilters(query: any): ItemFilters {
   if (query.type && ["post", "comment", "both"].includes(String(query.type))) {
     f.type = query.type;
   }
-  if (query.platform && ["reddit", "quora", "teamblind", "all"].includes(String(query.platform).toLowerCase())) {
+  if (query.platform && ["reddit", "quora", "teamblind", "trustpilot", "all"].includes(String(query.platform).toLowerCase())) {
     f.platform = String(query.platform).toLowerCase() as ItemFilters["platform"];
   }
   if (query.author) f.author = String(query.author);
@@ -32,9 +32,13 @@ function parseFilters(query: any): ItemFilters {
   return f;
 }
 
-// GET /api/overview?keyword=...
+// GET /api/overview?keyword=...&platform=...&dateFrom=...&dateTo=...
 itemsRouter.get("/overview", async (req, res) => {
-  const overview = await getOverview(req.query.keyword ? String(req.query.keyword) : undefined);
+  const keyword = req.query.keyword ? String(req.query.keyword) : undefined;
+  const platform = req.query.platform ? String(req.query.platform) : undefined;
+  const dateFrom = req.query.dateFrom ? new Date(String(req.query.dateFrom)) : undefined;
+  const dateTo = req.query.dateTo ? new Date(String(req.query.dateTo)) : undefined;
+  const overview = await getOverview(keyword, platform, dateFrom, dateTo);
   res.json(overview);
 });
 

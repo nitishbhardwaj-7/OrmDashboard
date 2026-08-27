@@ -37,16 +37,20 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
     }
   }
 
+  const isTrustpilot = item.platform === "trustpilot" || item.url?.includes("trustpilot");
+  const displayType = isTrustpilot ? "REVIEW" : item.type;
   const sourceUrl = item.url ?? (item.type === "comment" ? item.post?.url : null) ?? null;
 
   return (
     <div className="item-card">
       <div className="item-meta">
-        <span className="item-type">{item.type}</span>
+        <span className="item-type" style={{ background: isTrustpilot ? "rgba(0, 182, 122, 0.2)" : undefined, color: isTrustpilot ? "#00b67a" : undefined }}>
+          {displayType}
+        </span>
         <span>keyword: {item.keyword}</span>
         {item.author && <span>by {item.author}</span>}
         <span>{formatDate(item.publishedAt)}</span>
-        {item.type === "post" && item.platform && <span>{item.platform}</span>}
+        {item.platform && <span>{item.platform}</span>}
       </div>
       <p className="item-text">{item.text || <em style={{ color: "var(--text-dim)" }}>No text content extracted from this item.</em>}</p>
       <div className="item-footer">
@@ -58,7 +62,7 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {sourceUrl && (
             <a href={sourceUrl} target="_blank" rel="noreferrer">
-              View {item.type === "post" ? "Post" : "Comment"} ↗
+              View {isTrustpilot ? "Review" : item.type === "post" ? "Post" : "Comment"} ↗
             </a>
           )}
           {item.status === "FAILED" && (
