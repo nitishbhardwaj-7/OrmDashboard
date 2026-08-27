@@ -80,7 +80,7 @@ export function SettingsPage() {
   if (loading) {
     return (
       <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-dim)" }}>
-        <div className="spinner" style={{ width: 24, height: 24, borderLineWidth: 3 }} />
+        <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
         <p style={{ marginTop: 12 }}>Loading configuration settings…</p>
       </div>
     );

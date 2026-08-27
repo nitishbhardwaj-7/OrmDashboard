@@ -10,9 +10,17 @@ function formatDate(iso: string | null): string {
   return d.toLocaleString();
 }
 
-export function ItemList({ items, onRetried }: { items: FeedItem[]; onRetried?: () => void }) {
+export function ItemList({
+  items,
+  emptyMessage = "No items match the current filters yet.",
+  onRetried,
+}: {
+  items: FeedItem[];
+  emptyMessage?: string;
+  onRetried?: () => void;
+}) {
   if (items.length === 0) {
-    return <div className="empty-state">No items match the current filters yet.</div>;
+    return <div className="empty-state">{emptyMessage}</div>;
   }
   return (
     <div className="item-list">

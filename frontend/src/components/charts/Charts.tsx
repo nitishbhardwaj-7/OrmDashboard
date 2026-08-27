@@ -13,7 +13,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import type { Overview, SentimentByKeywordRow, SentimentOverTimeRow } from "../../api/types";
+import type { Overview, SentimentByKeywordRow, SentimentByPlatformRow, SentimentOverTimeRow } from "../../api/types";
 
 const COLORS = { POSITIVE: "#33c17a", NEGATIVE: "#ef5164", NEUTRAL: "#8b93ab" };
 

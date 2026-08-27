@@ -34,6 +34,7 @@ export interface BaseItem {
   confidence: number | null;
   status: ProcessingStatus;
   processingError: string | null;
+  platform?: string | null;
   createdAt: string;
 }
 
