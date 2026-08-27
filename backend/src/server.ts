@@ -13,12 +13,7 @@ import { startHourlyScraperCron } from "./services/cronScheduler";
 const app = express();
 
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
-      return callback(null, true);
-    }
-    return callback(null, true);
-  },
+  origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: "10mb" }));

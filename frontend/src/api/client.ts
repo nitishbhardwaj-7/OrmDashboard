@@ -15,7 +15,16 @@ import type {
   CronStatus,
 } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
+function getApiBaseUrl(): string {
+  let raw = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+  raw = raw.trim().replace(/\/+$/, "");
+  if (!raw.endsWith("/api")) {
+    raw = `${raw}/api`;
+  }
+  return raw;
+}
+
+const BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;
