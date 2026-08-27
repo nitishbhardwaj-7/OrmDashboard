@@ -8,18 +8,14 @@ RUN apt-get update && apt-get install -y curl gnupg && \
 
 WORKDIR /app
 
-# Copy package files and prisma schema
-COPY package*.json ./
-COPY prisma ./prisma/
-
-# Install Node dependencies
-RUN npm install
-
-# Install Python dependencies
-RUN pip3 install --no-cache-dir playwright
-
-# Copy backend source code
+# Copy all backend files
 COPY . .
+
+# Install Node dependencies without triggering postinstall prematurely
+RUN npm install --ignore-scripts
+
+# Install Python Playwright package
+RUN pip3 install --no-cache-dir playwright
 
 # Generate Prisma Client & Build TypeScript
 RUN npx prisma generate
