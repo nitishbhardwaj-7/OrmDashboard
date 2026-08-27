@@ -91,7 +91,11 @@ platformKeywordsRouter.post("/", async (req, res, next) => {
 platformKeywordsRouter.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    await (prisma as any).platformKeyword.delete({ where: { id } });
+    try {
+      await (prisma as any).platformKeyword.delete({ where: { id } });
+    } catch (e) {
+      // ignore if already deleted
+    }
     res.json({ ok: true, message: "Keyword card deleted successfully." });
   } catch (err) {
     next(err);
@@ -116,26 +120,47 @@ platformKeywordsRouter.patch("/:id/toggle", async (req, res, next) => {
   }
 });
 
-// POST /api/platform-keywords/run-card/:id — run a single card immediately
+// POST /api/platform-keywords/run-card/:id — run a single card immediately with bulletproof fallback
 platformKeywordsRouter.post("/run-card/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const card = await (prisma as any).platformKeyword.findUnique({ where: { id } });
-    if (!card) return res.status(404).json({ error: "Keyword card not found." });
+    const { platform: bodyPlatform, keyword: bodyKeyword, searchUrl: bodySearchUrl } = req.body ?? {};
+
+    let card = await (prisma as any).platformKeyword.findUnique({ where: { id } });
+
+    if (!card && bodyPlatform && bodyKeyword) {
+      card = await (prisma as any).platformKeyword.findFirst({
+        where: { platform: bodyPlatform, keyword: bodyKeyword },
+      });
+    }
+
+    const targetPlatform = card?.platform || bodyPlatform;
+    const targetKeyword = card?.keyword || bodyKeyword;
+    const targetUrl = card?.searchUrl || bodySearchUrl || undefined;
+
+    if (!targetPlatform || !targetKeyword) {
+      return res.status(404).json({ error: "Keyword card not found." });
+    }
 
     const rawItems = await runPythonSocialScraper({
-      keyword: card.keyword,
-      url: card.searchUrl || undefined,
+      keyword: targetKeyword,
+      url: targetUrl,
       limit: 100,
-      platform: card.platform as any,
+      platform: targetPlatform as any,
     });
 
-    const result = await runManualScrapePipeline(card.keyword, card.platform as any, rawItems);
+    const result = await runManualScrapePipeline(targetKeyword, targetPlatform as any, rawItems);
 
-    await (prisma as any).platformKeyword.update({
-      where: { id },
-      data: { lastRunAt: new Date() },
-    });
+    if (card?.id) {
+      try {
+        await (prisma as any).platformKeyword.update({
+          where: { id: card.id },
+          data: { lastRunAt: new Date() },
+        });
+      } catch (e) {
+        // ignore update
+      }
+    }
 
     res.json({ ok: true, result });
   } catch (err) {

@@ -138,8 +138,11 @@ export const api = {
   togglePlatformCard: (id: string) =>
     request<{ ok: boolean; card: PlatformKeywordCard }>(`/platform-keywords/${id}/toggle`, { method: "PATCH" }),
 
-  runPlatformCardNow: (id: string) =>
-    request<{ ok: boolean; result: ManualScrapeResult }>(`/platform-keywords/run-card/${id}`, { method: "POST" }),
+  runPlatformCardNow: (id: string, payload?: { platform?: string; keyword?: string; searchUrl?: string }) =>
+    request<{ ok: boolean; result: ManualScrapeResult }>(`/platform-keywords/run-card/${id}`, {
+      method: "POST",
+      body: JSON.stringify(payload ?? {}),
+    }),
 
   runAllPlatformCardsNow: () =>
     request<{ ok: boolean; message: string; newItems?: number }>("/platform-keywords/run-all", { method: "POST" }),

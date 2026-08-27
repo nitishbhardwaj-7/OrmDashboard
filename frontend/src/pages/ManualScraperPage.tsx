@@ -91,7 +91,11 @@ export function ManualScraperPage() {
     setProgressStage(`Running Playwright scraper for ${card.platform.toUpperCase()} keyword "${card.keyword}"...`);
 
     try {
-      const res = await api.runPlatformCardNow(card.id);
+      const res = await api.runPlatformCardNow(card.id, {
+        platform: card.platform,
+        keyword: card.keyword,
+        searchUrl: card.searchUrl,
+      });
       setResult(res.result);
       const newItems = (res.result.postsCreated || 0) + (res.result.commentsCreated || 0);
       const skipped = (res.result.postsSkippedExisting || 0) + (res.result.commentsSkippedExisting || 0);
