@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { execSync } from "child_process";
 import { env } from "./config/env";
 import { keywordsRouter } from "./routes/keywords";
 import { itemsRouter } from "./routes/items";
@@ -11,6 +12,14 @@ import { platformKeywordsRouter } from "./routes/platformKeywords";
 import { startHourlyScraperCron } from "./services/cronScheduler";
 
 const app = express();
+
+// Auto sync Prisma schema on server startup
+try {
+  console.log("Ensuring Prisma database schema is in sync...");
+  execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+} catch (err: any) {
+  console.warn("Notice: Prisma DB sync notice:", err?.message || err);
+}
 
 app.use(cors({
   origin: true,
@@ -34,10 +43,11 @@ app.use("/api/retry", retryRouter);
 app.use("/api", itemsRouter);
 app.use("/api/charts", chartsRouter);
 
-// Central error handler — never leak secrets or internal stack traces.
+// Central error handler — return actual message for clean diagnostics
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
-  res.status(500).json({ error: "Unexpected server error." });
+  console.error("SERVER ERROR:", err);
+  const msg = err?.message || (typeof err === "string" ? err : "Unexpected server error.");
+  res.status(500).json({ error: msg });
 });
 
 app.listen(env.PORT, () => {
