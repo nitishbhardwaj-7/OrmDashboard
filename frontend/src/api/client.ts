@@ -18,6 +18,9 @@ import type {
 function getApiBaseUrl(): string {
   let raw = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:4000/api";
   raw = raw.trim().replace(/\/+$/, "");
+  if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+    raw = `https://${raw}`;
+  }
   if (!raw.endsWith("/api")) {
     raw = `${raw}/api`;
   }
