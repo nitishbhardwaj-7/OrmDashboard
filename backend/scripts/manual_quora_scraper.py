@@ -85,9 +85,27 @@ def generate_english_quora_topics(keyword: str):
         }
     ]
 
+def launch_browser(p):
+    args = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--no-zygote",
+        "--disable-gpu",
+    ]
+    try:
+        return p.chromium.launch(headless=True, args=args)
+    except Exception:
+        try:
+            return p.firefox.launch(headless=True)
+        except Exception:
+            return p.chromium.launch(headless=True)
+
 def main():
     args = parse_args()
-    keyword = args.keyword.strip() or "eb1a"
+    keyword = args.keyword.strip()
     
     if args.url and args.url.strip():
         raw_target_url = args.url.strip()
@@ -101,18 +119,7 @@ def main():
     
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-accelerated-2d-canvas",
-                    "--no-first-run",
-                    "--no-zygote",
-                    "--disable-gpu",
-                ]
-            )
+            browser = launch_browser(p)
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 locale="en-US",
