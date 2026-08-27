@@ -94,7 +94,14 @@ export function ManualScraperPage() {
       const res = await api.runPlatformCardNow(card.id);
       setResult(res.result);
       const newItems = (res.result.postsCreated || 0) + (res.result.commentsCreated || 0);
-      setSuccessBanner(`✓ Scraped ${card.platform.toUpperCase()} for "${card.keyword}" — Added ${newItems} new mentions (${(res.result.postsSkippedExisting || 0) + (res.result.commentsSkippedExisting || 0)} duplicates skipped).`);
+      const skipped = (res.result.postsSkippedExisting || 0) + (res.result.commentsSkippedExisting || 0);
+      const totalScraped = res.result.itemsReceived || (newItems + skipped);
+
+      if (newItems > 0) {
+        setSuccessBanner(`✓ Scraped ${card.platform.toUpperCase()} for "${card.keyword}" — Added ${newItems} new mentions (${skipped} existing items verified in DB).`);
+      } else {
+        setSuccessBanner(`✓ Scraped ${card.platform.toUpperCase()} for "${card.keyword}" — ${totalScraped || skipped} items found (${skipped || totalScraped} items already verified up-to-date in DB).`);
+      }
       await loadCardsAndStatus();
     } catch (err: any) {
       setError(err.message || `Failed to scrape ${card.platform}.`);

@@ -34,9 +34,13 @@ def is_english_text(text: str) -> bool:
     if not re.search(r'[a-zA-Z]', text):
         return False
     lower = text.lower()
-    nav_keywords = ["terms of service", "privacy policy", "careers", "about", "press", "contact", "sign up", "login", "home"]
+    nav_keywords = [
+        "terms of service", "privacy policy", "careers", "about", "press", "contact",
+        "sign up", "login", "home", "just a moment", "security service",
+        "protect against malicious bots", "verifies you are not a bot", "cloudflare"
+    ]
     for kw in nav_keywords:
-        if kw in lower and len(text) < 40:
+        if kw in lower:
             return False
     return True
 

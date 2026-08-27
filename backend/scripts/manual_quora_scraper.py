@@ -41,11 +41,12 @@ def is_english_text(text: str) -> bool:
     nav_keywords = [
         "terms of service", "privacy policy", "careers", "about", "press", "contact",
         "languages", "quora home", "go back", "page not found", "error", "something went wrong",
-        "searched everywhere", "wait a moment", "copyright",
+        "searched everywhere", "wait a moment", "copyright", "just a moment", "security service",
+        "protect against malicious bots", "verifies you are not a bot", "cloudflare",
         "شروط الخدمة", "سياسة الخصوصية", "الوظائف", "الاتصال", "الصحافة", "مكان لتبادل المعرفة"
     ]
     for kw in nav_keywords:
-        if kw in lower and len(text) < 75:
+        if kw in lower:
             return False
     return True
 
