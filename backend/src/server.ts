@@ -9,6 +9,7 @@ import { retryRouter } from "./routes/retry";
 import { settingsRouter } from "./routes/settings";
 import { manualScraperRouter } from "./routes/manualScraper";
 import { platformKeywordsRouter } from "./routes/platformKeywords";
+import { googleScraperRouter } from "./routes/googleScraper";
 import { startHourlyScraperCron } from "./services/cronScheduler";
 
 const app = express();
@@ -41,6 +42,7 @@ app.get(["/health", "/api/health"], (_req, res) => {
 
 // Dual mount /api and root routes for 100% path compatibility
 app.use(["/api/settings", "/settings"], settingsRouter);
+app.use(["/api/google-scraper", "/google-scraper"], googleScraperRouter);
 app.use(["/api/manual-scraper", "/manual-scraper"], manualScraperRouter);
 app.use(["/api/platform-keywords", "/platform-keywords"], platformKeywordsRouter);
 app.use(["/api/keywords", "/keywords"], keywordsRouter);

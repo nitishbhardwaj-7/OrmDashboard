@@ -27,6 +27,10 @@ export const env = {
 
   RESEND_API_KEY: optional("RESEND_API_KEY"),
   ALERT_EMAIL: optional("ALERT_EMAIL", "delivered@resend.dev"),
+
+  SEARCHAPI_KEY: optional("SEARCHAPI_KEY"),
+  MONGODB_URI: optional("MONGODB_URI"),
+  MONGODB_DB: optional("MONGODB_DB", "brandmonitor"),
 };
 
 export function getSettings() {

@@ -172,4 +172,50 @@ export interface CronStatus {
   logs: CronLogItem[];
 }
 
+export interface GoogleMention {
+  id: string;
+  title_key?: string;
+  norm_url?: string;
+  url: string;
+  title: string;
+  snippet?: string;
+  domain: string;
+  platform: string;
+  source_id?: string;
+  engine?: string;
+  query?: string;
+  published?: string;
+  first_seen?: string;
+}
+
+export interface GoogleMentionsResponse {
+  brand: string;
+  total: number;
+  shown: number;
+  counts: Record<string, number>;
+  mentions: GoogleMention[];
+}
+
+export interface GoogleStatsResponse {
+  total: number;
+  counts: Record<string, number>;
+}
+
+export interface GoogleScanPayload {
+  keyword?: string;
+  engine?: string;
+}
+
+export interface GoogleIngestResult {
+  ok: boolean;
+  keyword: string;
+  itemsReceived: number;
+  postsCreated: number;
+  postsSkipped: number;
+  analyzed: number;
+  failed: number;
+  message: string;
+}
+
+
 

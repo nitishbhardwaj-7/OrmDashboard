@@ -7,6 +7,7 @@ import { SearchPage } from "./pages/SearchPage";
 import { FailedPage } from "./pages/FailedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ManualScraperPage } from "./pages/ManualScraperPage";
+import { GoogleScraperPage } from "./pages/GoogleScraperPage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route index element={<OverviewPage />} />
         <Route path="explorer" element={<ExplorerPage />} />
         <Route path="manual-scraper" element={<ManualScraperPage />} />
+        <Route path="google-scraper" element={<GoogleScraperPage />} />
         <Route path="negative" element={<SentimentSectionPage title="Negative Mentions" kind="negative" />} />
         <Route path="positive" element={<SentimentSectionPage title="Positive Mentions" kind="positive" />} />
         <Route path="search" element={<SearchPage />} />

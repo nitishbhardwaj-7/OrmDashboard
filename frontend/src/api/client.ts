@@ -13,6 +13,10 @@ import type {
   ManualScrapeResult,
   PlatformKeywordCard,
   CronStatus,
+  GoogleMentionsResponse,
+  GoogleStatsResponse,
+  GoogleScanPayload,
+  GoogleIngestResult,
 } from "./types";
 
 function getApiBaseUrl(): string {
@@ -55,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-function toQuery(filters: ItemFiltersQuery = {}): string {
+function toQuery(filters: Record<string, any> = {}): string {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
@@ -151,4 +155,24 @@ export const api = {
     request<{ ok: boolean; message: string; newItems?: number }>("/platform-keywords/run-all", { method: "POST" }),
 
   getCronStatus: () => request<CronStatus>("/platform-keywords/cron-status"),
+
+  // Google Scraper APIs
+  getGoogleMentions: (platform = "All", q = "") =>
+    request<GoogleMentionsResponse>(`/google-scraper/mentions${toQuery({ platform, q })}`),
+
+  getGoogleStats: () => request<GoogleStatsResponse>("/google-scraper/stats"),
+
+  runGoogleScan: (payload: GoogleScanPayload) =>
+    request<{ ok: boolean; message: string }>("/google-scraper/scan", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  ingestGoogleMentions: (payload: { items: any[]; keyword?: string }) =>
+    request<GoogleIngestResult>("/google-scraper/ingest", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getGoogleStreamUrl: () => `${BASE_URL}/google-scraper/stream`,
 };

@@ -31,6 +31,9 @@ export function Layout() {
         <NavLink to="/manual-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Manual Scraper
         </NavLink>
+        <NavLink to="/google-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          Google Scraper
+        </NavLink>
         <NavLink to="/negative" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Negative Mentions
         </NavLink>
