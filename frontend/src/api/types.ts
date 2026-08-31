@@ -115,9 +115,13 @@ export interface DashboardSettings {
   aiModel: string;
   resendApiKey?: string;
   alertEmail?: string;
+  searchApiKey?: string;
+  mongodbUri?: string;
+  mongodbDb?: string;
   apifyConfigured?: boolean;
   aiConfigured?: boolean;
   resendConfigured?: boolean;
+  searchApiConfigured?: boolean;
 }
 
 export interface ManualScrapePayload {

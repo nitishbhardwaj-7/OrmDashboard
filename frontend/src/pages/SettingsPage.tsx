@@ -18,6 +18,8 @@ export function SettingsPage() {
   const [showApifyKey, setShowApifyKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
+  const [showSearchApiKey, setShowSearchApiKey] = useState(false);
+  const [showMongodbUri, setShowMongodbUri] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export function SettingsPage() {
         <div>
           <h2>Dashboard Settings</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Configure integrations for Apify scraper data source, AI Sentiment engine, Resend email alerts, and database management.
+            Configure integrations for SearchApi.io Google Scraper, Apify, AI Sentiment engine, Resend email alerts, and MongoDB storage.
           </p>
         </div>
       </div>
@@ -105,7 +107,21 @@ export function SettingsPage() {
       )}
 
       {/* Integration Status Badges */}
-      <div className="stat-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", marginBottom: 24 }}>
+      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginBottom: 24 }}>
+        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              SearchApi / Google
+            </div>
+            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
+              {settings.searchApiConfigured ? "Ready" : "Incomplete"}
+            </div>
+          </div>
+          <span className={`badge ${settings.searchApiConfigured ? "POSITIVE" : "NEGATIVE"}`}>
+            {settings.searchApiConfigured ? "Active" : "Off"}
+          </span>
+        </div>
+
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -137,7 +153,7 @@ export function SettingsPage() {
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Email Alerts (Resend)
+              Email Alerts
             </div>
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
               {settings.resendConfigured ? "Active" : "Disabled"}
@@ -191,6 +207,72 @@ export function SettingsPage() {
               placeholder="you@example.com"
             />
             <span className="field-hint">The target email address where negative mention alert reports will be delivered.</span>
+          </div>
+        </div>
+
+        {/* Google Scraper & SearchApi.io Settings Card */}
+        <div className="card settings-section">
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16 }}>🔍 Google Scraper &amp; SearchApi.io Integration</h3>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              Configure your SearchApi.io API key for Google, Google News, Bing, and YouTube SERP scraping.
+            </span>
+          </div>
+
+          <div className="settings-form-group">
+            <label htmlFor="searchApiKey">SearchApi.io API Key</label>
+            <div className="input-with-button">
+              <input
+                id="searchApiKey"
+                type={showSearchApiKey ? "text" : "password"}
+                value={settings.searchApiKey ?? ""}
+                onChange={(e) => setSettings({ ...settings, searchApiKey: e.target.value })}
+                placeholder="Enter SearchApi.io API Key"
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowSearchApiKey(!showSearchApiKey)}
+                style={{ minWidth: 64 }}
+              >
+                {showSearchApiKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <span className="field-hint">Used by python scraper to query Google Web, News, Bing, and YouTube SERP results.</span>
+          </div>
+
+          <div className="settings-form-group" style={{ marginTop: 16 }}>
+            <label htmlFor="mongodbUri">MongoDB Atlas URI (Optional)</label>
+            <div className="input-with-button">
+              <input
+                id="mongodbUri"
+                type={showMongodbUri ? "text" : "password"}
+                value={settings.mongodbUri ?? ""}
+                onChange={(e) => setSettings({ ...settings, mongodbUri: e.target.value })}
+                placeholder="mongodb+srv://user:pass@cluster.mongodb.net/"
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowMongodbUri(!showMongodbUri)}
+                style={{ minWidth: 64 }}
+              >
+                {showMongodbUri ? "Hide" : "Show"}
+              </button>
+            </div>
+            <span className="field-hint">Connection string for MongoDB Atlas. If omitted or unreachable, local SQLite fallback is used automatically.</span>
+          </div>
+
+          <div className="settings-form-group" style={{ marginTop: 16 }}>
+            <label htmlFor="mongodbDb">MongoDB Database Name</label>
+            <input
+              id="mongodbDb"
+              type="text"
+              value={settings.mongodbDb ?? "brandmonitor"}
+              onChange={(e) => setSettings({ ...settings, mongodbDb: e.target.value })}
+              placeholder="brandmonitor"
+            />
+            <span className="field-hint">Target MongoDB database name (default: brandmonitor).</span>
           </div>
         </div>
 

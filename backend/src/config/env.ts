@@ -42,9 +42,13 @@ export function getSettings() {
     aiModel: env.AI_MODEL,
     resendApiKey: env.RESEND_API_KEY,
     alertEmail: env.ALERT_EMAIL,
+    searchApiKey: env.SEARCHAPI_KEY,
+    mongodbUri: env.MONGODB_URI,
+    mongodbDb: env.MONGODB_DB,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
     resendConfigured: Boolean(env.RESEND_API_KEY),
+    searchApiConfigured: Boolean(env.SEARCHAPI_KEY),
   };
 }
 
@@ -56,6 +60,9 @@ export interface SettingsUpdatePayload {
   aiModel?: string;
   resendApiKey?: string;
   alertEmail?: string;
+  searchApiKey?: string;
+  mongodbUri?: string;
+  mongodbDb?: string;
 }
 
 export function updateSettings(updates: SettingsUpdatePayload) {
@@ -87,6 +94,18 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     env.ALERT_EMAIL = updates.alertEmail.trim();
     process.env.ALERT_EMAIL = env.ALERT_EMAIL;
   }
+  if (updates.searchApiKey !== undefined) {
+    env.SEARCHAPI_KEY = updates.searchApiKey.trim();
+    process.env.SEARCHAPI_KEY = env.SEARCHAPI_KEY;
+  }
+  if (updates.mongodbUri !== undefined) {
+    env.MONGODB_URI = updates.mongodbUri.trim();
+    process.env.MONGODB_URI = env.MONGODB_URI;
+  }
+  if (updates.mongodbDb !== undefined) {
+    env.MONGODB_DB = updates.mongodbDb.trim();
+    process.env.MONGODB_DB = env.MONGODB_DB;
+  }
 
   // Also auto-extract token if user set APIFY_API_URL with token param and APIFY_API_KEY is empty
   if (env.APIFY_API_URL && !env.APIFY_API_KEY) {
@@ -105,6 +124,9 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     AI_MODEL: env.AI_MODEL,
     RESEND_API_KEY: env.RESEND_API_KEY,
     ALERT_EMAIL: env.ALERT_EMAIL,
+    SEARCHAPI_KEY: env.SEARCHAPI_KEY,
+    MONGODB_URI: env.MONGODB_URI,
+    MONGODB_DB: env.MONGODB_DB,
   });
 
   return getSettings();
