@@ -5,6 +5,17 @@ import fs from "fs";
 const envPath = path.resolve(__dirname, "../../.env");
 dotenv.config({ path: envPath });
 
+const DEFAULT_DATABASE_URL =
+  "postgresql://neondb_owner:npg_V5BenYtrj7LE@ep-shy-star-a5pnqlsg-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+
+function getDatabaseUrl(): string {
+  const raw = process.env.DATABASE_URL;
+  if (!raw || raw.trim().startsWith("file:")) {
+    return DEFAULT_DATABASE_URL;
+  }
+  return raw.trim();
+}
+
 function optional(name: string, fallback = ""): string {
   return process.env[name] ?? fallback;
 }
@@ -31,7 +42,7 @@ export const env = {
   SEARCHAPI_KEY: optional("SEARCHAPI_KEY"),
   MONGODB_URI: optional("MONGODB_URI"),
   MONGODB_DB: optional("MONGODB_DB", "brandmonitor"),
-  DATABASE_URL: optional("DATABASE_URL"),
+  DATABASE_URL: getDatabaseUrl(),
 };
 
 export function getSettings() {
