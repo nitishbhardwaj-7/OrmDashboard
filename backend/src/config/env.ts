@@ -31,6 +31,7 @@ export const env = {
   SEARCHAPI_KEY: optional("SEARCHAPI_KEY"),
   MONGODB_URI: optional("MONGODB_URI"),
   MONGODB_DB: optional("MONGODB_DB", "brandmonitor"),
+  DATABASE_URL: optional("DATABASE_URL"),
 };
 
 export function getSettings() {
@@ -45,10 +46,12 @@ export function getSettings() {
     searchApiKey: env.SEARCHAPI_KEY,
     mongodbUri: env.MONGODB_URI,
     mongodbDb: env.MONGODB_DB,
+    databaseUrl: env.DATABASE_URL,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
     resendConfigured: Boolean(env.RESEND_API_KEY),
     searchApiConfigured: Boolean(env.SEARCHAPI_KEY),
+    databaseConfigured: Boolean(env.DATABASE_URL),
   };
 }
 
@@ -63,6 +66,7 @@ export interface SettingsUpdatePayload {
   searchApiKey?: string;
   mongodbUri?: string;
   mongodbDb?: string;
+  databaseUrl?: string;
 }
 
 export function updateSettings(updates: SettingsUpdatePayload) {
@@ -106,6 +110,10 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     env.MONGODB_DB = updates.mongodbDb.trim();
     process.env.MONGODB_DB = env.MONGODB_DB;
   }
+  if (updates.databaseUrl !== undefined) {
+    env.DATABASE_URL = updates.databaseUrl.trim();
+    process.env.DATABASE_URL = env.DATABASE_URL;
+  }
 
   // Also auto-extract token if user set APIFY_API_URL with token param and APIFY_API_KEY is empty
   if (env.APIFY_API_URL && !env.APIFY_API_KEY) {
@@ -127,6 +135,7 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     SEARCHAPI_KEY: env.SEARCHAPI_KEY,
     MONGODB_URI: env.MONGODB_URI,
     MONGODB_DB: env.MONGODB_DB,
+    DATABASE_URL: env.DATABASE_URL,
   });
 
   return getSettings();

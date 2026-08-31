@@ -118,10 +118,12 @@ export interface DashboardSettings {
   searchApiKey?: string;
   mongodbUri?: string;
   mongodbDb?: string;
+  databaseUrl?: string;
   apifyConfigured?: boolean;
   aiConfigured?: boolean;
   resendConfigured?: boolean;
   searchApiConfigured?: boolean;
+  databaseConfigured?: boolean;
 }
 
 export interface ManualScrapePayload {

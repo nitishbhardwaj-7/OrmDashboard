@@ -20,6 +20,7 @@ export function SettingsPage() {
   const [showResendKey, setShowResendKey] = useState(false);
   const [showSearchApiKey, setShowSearchApiKey] = useState(false);
   const [showMongodbUri, setShowMongodbUri] = useState(false);
+  const [showDatabaseUrl, setShowDatabaseUrl] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -163,6 +164,20 @@ export function SettingsPage() {
             {settings.resendConfigured ? "Active" : "Off"}
           </span>
         </div>
+
+        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              PostgreSQL / Neon DB
+            </div>
+            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
+              {settings.databaseConfigured ? "Connected" : "Not Set"}
+            </div>
+          </div>
+          <span className={`badge ${settings.databaseConfigured ? "POSITIVE" : "NEGATIVE"}`}>
+            {settings.databaseConfigured ? "Active" : "Off"}
+          </span>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -207,6 +222,40 @@ export function SettingsPage() {
               placeholder="you@example.com"
             />
             <span className="field-hint">The target email address where negative mention alert reports will be delivered.</span>
+          </div>
+        </div>
+
+        {/* PostgreSQL / Neon Database Settings Card */}
+        <div className="card settings-section">
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16 }}>🐘 Primary Database (PostgreSQL / Neon)</h3>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+              Configure your primary PostgreSQL connection string (`DATABASE_URL`). Used to store all posts, comments, keywords, and scrape runs.
+            </span>
+          </div>
+
+          <div className="settings-form-group">
+            <label htmlFor="databaseUrl">PostgreSQL Connection URL (DATABASE_URL)</label>
+            <div className="input-with-button">
+              <input
+                id="databaseUrl"
+                type={showDatabaseUrl ? "text" : "password"}
+                value={settings.databaseUrl ?? ""}
+                onChange={(e) => setSettings({ ...settings, databaseUrl: e.target.value })}
+                placeholder="postgresql://user:password@ep-xyz.neon.tech/neondb?sslmode=require"
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowDatabaseUrl(!showDatabaseUrl)}
+                style={{ minWidth: 64 }}
+              >
+                {showDatabaseUrl ? "Hide" : "Show"}
+              </button>
+            </div>
+            <span className="field-hint">
+              Target PostgreSQL connection string (Neon / Supabase / Railway Postgres / AWS RDS). Persisted to backend/.env.
+            </span>
           </div>
         </div>
 
