@@ -14,8 +14,8 @@ COPY backend/ ./
 # Install Node dependencies
 RUN npm install --ignore-scripts
 
-# Install Python Playwright package and download all browser binaries inside image
-RUN pip3 install --no-cache-dir playwright
+# Install Python Playwright package, pymongo, dnspython and download all browser binaries inside image
+RUN pip3 install --no-cache-dir playwright pymongo dnspython
 RUN playwright install
 RUN python3 -m playwright install
 
