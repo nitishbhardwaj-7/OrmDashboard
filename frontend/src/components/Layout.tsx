@@ -58,9 +58,8 @@ export function Layout() {
         </form>
 
         <div style={{ marginTop: "auto", padding: "10px 8px", fontSize: 11, color: "var(--text-dim)" }}>
-          {health && !health.apifyConfigured && <div style={{ color: "#ffb4bd" }}>⚠ Apify not configured</div>}
           {health && !health.aiConfigured && <div style={{ color: "#ffb4bd" }}>⚠ AI provider not configured</div>}
-          {health?.apifyConfigured && health?.aiConfigured && <div>All integrations configured</div>}
+          {health?.aiConfigured && <div>AI Integration Active</div>}
         </div>
       </aside>
       <main className="main">

@@ -8,7 +8,6 @@ import type {
   SentimentOverTimeRow,
 } from "../api/types";
 import { StatCard } from "../components/StatCard";
-import { ScrapeForm } from "../components/ScrapeForm";
 import { DateRangeSelector, type DateRange } from "../components/DateRangeSelector";
 import {
   DistributionPieChart,
@@ -148,11 +147,6 @@ export function OverviewPage() {
 
       {/* Date Range Selector matching user reference design */}
       <DateRangeSelector value={dateRange} onChange={setDateRange} />
-
-      <div className="card" style={{ marginBottom: 22 }}>
-        <div className="chart-title">Run a new Apify scrape for a keyword</div>
-        <ScrapeForm onComplete={() => loadData(selectedPlatform, dateRange)} />
-      </div>
 
       {error && (
         <div className="banner error" style={{ marginBottom: 20 }}>

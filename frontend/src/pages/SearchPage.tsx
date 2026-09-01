@@ -28,8 +28,7 @@ export function SearchPage() {
         <h2>Search results for "{q}"</h2>
       </div>
       <p style={{ color: "var(--text-dim)", marginTop: -10 }}>
-        Searches post text, comment text, authors, and keywords across already-stored data — no new Apify request is
-        made.
+        Searches post text, comment text, authors, and keywords across all stored brand monitoring data.
       </p>
 
       {loading && <div className="empty-state">Searching…</div>}

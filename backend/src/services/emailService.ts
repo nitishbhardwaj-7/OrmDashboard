@@ -19,7 +19,13 @@ export async function sendNegativeMentionAlert(item: NegativeMentionPayload): Pr
     return false;
   }
 
-  const recipientEmail = env.ALERT_EMAIL?.trim() || "delivered@resend.dev";
+  const rawRecipients = env.ALERT_EMAIL?.trim() || "delivered@resend.dev";
+  const recipientEmails = rawRecipients
+    .split(/[\s,;]+/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+
+  const finalRecipients = recipientEmails.length > 0 ? recipientEmails : ["delivered@resend.dev"];
   const platformName = (item.platform || "Social Media").toUpperCase();
   const itemType = item.type.toUpperCase();
   const dateStr = item.publishedAt ? new Date(item.publishedAt).toLocaleString() : new Date().toLocaleString();
@@ -104,7 +110,7 @@ ${escapeHtml(item.text || "No text content available.")}
       },
       body: JSON.stringify({
         from: "ORM Alert Monitor <onboarding@resend.dev>",
-        to: [recipientEmail],
+        to: finalRecipients,
         subject,
         html,
       }),

@@ -15,7 +15,6 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resettingDb, setResettingDb] = useState(false);
-  const [showApifyKey, setShowApifyKey] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
   const [showSearchApiKey, setShowSearchApiKey] = useState(false);
@@ -95,7 +94,7 @@ export function SettingsPage() {
         <div>
           <h2>Dashboard Settings</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Configure integrations for SearchApi.io Google Scraper, Apify, AI Sentiment engine, Resend email alerts, and MongoDB storage.
+            Configure integrations for SearchApi.io Google Scraper, AI Sentiment engine, Resend email alerts, and PostgreSQL / Neon storage.
           </p>
         </div>
       </div>
@@ -123,19 +122,6 @@ export function SettingsPage() {
           </span>
         </div>
 
-        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Apify Scraper
-            </div>
-            <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
-              {settings.apifyConfigured ? "Ready" : "Incomplete"}
-            </div>
-          </div>
-          <span className={`badge ${settings.apifyConfigured ? "POSITIVE" : "NEGATIVE"}`}>
-            {settings.apifyConfigured ? "Active" : "Off"}
-          </span>
-        </div>
 
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -213,15 +199,17 @@ export function SettingsPage() {
           </div>
 
           <div className="settings-form-group" style={{ marginTop: 16 }}>
-            <label htmlFor="alertEmail">Alert Recipient Email</label>
+            <label htmlFor="alertEmail">Alert Recipient Email(s)</label>
             <input
               id="alertEmail"
-              type="email"
+              type="text"
               value={settings.alertEmail ?? "delivered@resend.dev"}
               onChange={(e) => setSettings({ ...settings, alertEmail: e.target.value })}
-              placeholder="you@example.com"
+              placeholder="admin@example.com, alerts@example.com"
             />
-            <span className="field-hint">The target email address where negative mention alert reports will be delivered.</span>
+            <span className="field-hint">
+              Target email address(es) where negative mention alert reports will be delivered. Separate multiple addresses with commas.
+            </span>
           </div>
         </div>
 
@@ -325,49 +313,6 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {/* API / Apify Settings Card */}
-        <div className="card settings-section">
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>Apify Scraper Integration</h3>
-            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Provide your Apify API Token and Actor/Task API endpoint URL.
-            </span>
-          </div>
-
-          <div className="settings-form-group">
-            <label htmlFor="apifyApiKey">API Key (Apify Token)</label>
-            <div className="input-with-button">
-              <input
-                id="apifyApiKey"
-                type={showApifyKey ? "text" : "password"}
-                value={settings.apifyApiKey}
-                onChange={(e) => setSettings({ ...settings, apifyApiKey: e.target.value })}
-                placeholder="apify_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              />
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setShowApifyKey(!showApifyKey)}
-                style={{ minWidth: 64 }}
-              >
-                {showApifyKey ? "Hide" : "Show"}
-              </button>
-            </div>
-            <span className="field-hint">Your secret Apify API token used to authenticate actor runs.</span>
-          </div>
-
-          <div className="settings-form-group" style={{ marginTop: 16 }}>
-            <label htmlFor="apifyApiUrl">API URL (Apify Endpoint)</label>
-            <input
-              id="apifyApiUrl"
-              type="text"
-              value={settings.apifyApiUrl}
-              onChange={(e) => setSettings({ ...settings, apifyApiUrl: e.target.value })}
-              placeholder="https://api.apify.com/v2/actors/your-actor-id/runs"
-            />
-            <span className="field-hint">The HTTP endpoint for initiating scrapes or fetching actor dataset items.</span>
-          </div>
-        </div>
 
         {/* AI Provider & Model Settings Card */}
         <div className="card settings-section">

@@ -12,15 +12,17 @@ export function DateRangeSelector({
   value: DateRange;
   onChange: (next: DateRange) => void;
 }) {
-  // Generate selectable months from Jan 2024 to Dec 2026
+  // Generate selectable months from Jan 2024 up to the current month/year
   const monthOptions = useMemo(() => {
     const options: { label: string; value: string }[] = [];
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
     const startYear = 2024;
-    const endYear = currentYear + 1;
 
-    for (let y = startYear; y <= endYear; y++) {
-      for (let m = 0; m < 12; m++) {
+    for (let y = startYear; y <= currentYear; y++) {
+      const maxMonth = y === currentYear ? currentMonth : 11;
+      for (let m = 0; m <= maxMonth; m++) {
         const d = new Date(y, m, 1);
         const val = `${y}-${String(m + 1).padStart(2, "0")}`;
         const label = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
