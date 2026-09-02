@@ -103,6 +103,8 @@ export const api = {
 
   getNegative: (filters: ItemFiltersQuery) => request<ItemsResponse>(`/items/negative${toQuery(filters)}`),
 
+  getNeutral: (filters: ItemFiltersQuery) => request<ItemsResponse>(`/items/neutral${toQuery(filters)}`),
+
   getPositive: (filters: ItemFiltersQuery) => request<ItemsResponse>(`/items/positive${toQuery(filters)}`),
 
   getFailed: () => request<{ posts: any[]; comments: any[] }>("/items/failed"),

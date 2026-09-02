@@ -3,6 +3,7 @@ import {
   getItems,
   getOverview,
   getNegativeItems,
+  getNeutralItems,
   getPositiveItems,
   globalSearch,
   getFailedItems,
@@ -51,6 +52,12 @@ itemsRouter.get("/items", async (req, res) => {
 // GET /api/items/negative
 itemsRouter.get("/items/negative", async (req, res) => {
   const result = await getNegativeItems(parseFilters(req.query));
+  res.json(result);
+});
+
+// GET /api/items/neutral
+itemsRouter.get("/items/neutral", async (req, res) => {
+  const result = await getNeutralItems(parseFilters(req.query));
   res.json(result);
 });
 

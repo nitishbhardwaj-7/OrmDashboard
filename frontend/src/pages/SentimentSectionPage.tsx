@@ -6,8 +6,8 @@ import { ItemList } from "../components/ItemList";
 
 const PAGE_SIZE = 20;
 
-/** Shared implementation for the dedicated Negative and Positive sections. */
-export function SentimentSectionPage({ title, kind }: { title: string; kind: "negative" | "positive" }) {
+/** Shared implementation for the dedicated Negative, Neutral, and Positive sections. */
+export function SentimentSectionPage({ title, kind }: { title: string; kind: "negative" | "positive" | "neutral" }) {
   const [filters, setFilters] = useState<Omit<FilterState, "sentiment">>({ type: "both", page: 1, pageSize: PAGE_SIZE });
   const [keywords, setKeywords] = useState<KeywordSummary[]>([]);
   const [data, setData] = useState<ItemsResponse | null>(null);
@@ -19,7 +19,7 @@ export function SentimentSectionPage({ title, kind }: { title: string; kind: "ne
 
   function fetchData() {
     setLoading(true);
-    const call = kind === "negative" ? api.getNegative : api.getPositive;
+    const call = kind === "negative" ? api.getNegative : kind === "positive" ? api.getPositive : api.getNeutral;
     call(filters)
       .then((r) => setData(r))
       .catch((err) => console.error("Failed to load sentiment section:", err))

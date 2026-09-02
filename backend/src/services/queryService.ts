@@ -224,6 +224,10 @@ export async function getNegativeItems(f: Omit<ItemFilters, "sentiment">) {
   return getItems({ ...f, sentiment: Sentiment.NEGATIVE });
 }
 
+export async function getNeutralItems(f: Omit<ItemFilters, "sentiment">) {
+  return getItems({ ...f, sentiment: Sentiment.NEUTRAL });
+}
+
 export async function getPositiveItems(f: Omit<ItemFilters, "sentiment">) {
   return getItems({ ...f, sentiment: Sentiment.POSITIVE });
 }

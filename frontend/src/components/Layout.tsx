@@ -1,20 +1,13 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 
 export function Layout() {
   const [health, setHealth] = useState<{ apifyConfigured: boolean; aiConfigured: boolean } | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const navigate = useNavigate();
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
   }, []);
-
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (searchTerm.trim()) navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
-  }
 
   return (
     <div className="app-shell">
@@ -29,13 +22,16 @@ export function Layout() {
           Posts &amp; Comments
         </NavLink>
         <NavLink to="/manual-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
-          Manual Scraper
+          Keywords Cards
         </NavLink>
         <NavLink to="/google-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Google Scraper
         </NavLink>
         <NavLink to="/negative" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Negative Mentions
+        </NavLink>
+        <NavLink to="/neutral" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          Neutral Mentions
         </NavLink>
         <NavLink to="/positive" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Positive Mentions
@@ -46,16 +42,6 @@ export function Layout() {
         <NavLink to="/settings" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Settings
         </NavLink>
-
-        <form onSubmit={submitSearch} style={{ marginTop: 18, padding: "0 8px" }}>
-          <input
-            type="text"
-            placeholder="Search everything…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </form>
 
         <div style={{ marginTop: "auto", padding: "10px 8px", fontSize: 11, color: "var(--text-dim)" }}>
           {health && !health.aiConfigured && <div style={{ color: "#ffb4bd" }}>⚠ AI provider not configured</div>}

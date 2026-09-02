@@ -88,7 +88,7 @@ Opens on `http://localhost:5173`. `VITE_API_BASE_URL` in `frontend/.env` control
 
 1. Open the dashboard, type a keyword (e.g. `"Dubai real estate"`) into **Run a new Apify scrape**, and submit.
 2. The backend calls your configured Apify endpoint, stores the raw response untouched, normalizes it into posts/comments, then runs each item through the AI sentiment API.
-3. Results appear in **Overview** (stats + charts), **Posts & Comments** (filterable/searchable feed), **Negative Mentions**, **Positive Mentions**, and global **Search**.
+3. Results appear in **Overview** (stats + charts), **Posts & Comments** (filterable/searchable feed), **Negative Mentions**, **Neutral Mentions**, **Positive Mentions**, and global **Search**.
 4. Items where sentiment analysis failed (AI error, rate limit, etc.) show up under **Failed / Retry** — the original scraped data and text are preserved, and you can retry analysis without re-scraping.
 
 ## Adapting to your actual Apify response

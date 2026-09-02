@@ -214,7 +214,7 @@ export function OverviewPage() {
 
           {keywords.length === 0 && (
             <div className="banner info" style={{ marginTop: 20 }}>
-              No data yet — enter a keyword above or use the Manual Scraper section to pull real data.
+              No data yet — enter a keyword above or use the Keywords Cards section to pull real data.
             </div>
           )}
         </>

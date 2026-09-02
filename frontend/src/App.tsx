@@ -18,6 +18,7 @@ export default function App() {
         <Route path="manual-scraper" element={<ManualScraperPage />} />
         <Route path="google-scraper" element={<GoogleScraperPage />} />
         <Route path="negative" element={<SentimentSectionPage title="Negative Mentions" kind="negative" />} />
+        <Route path="neutral" element={<SentimentSectionPage title="Neutral Mentions" kind="neutral" />} />
         <Route path="positive" element={<SentimentSectionPage title="Positive Mentions" kind="positive" />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="failed" element={<FailedPage />} />
