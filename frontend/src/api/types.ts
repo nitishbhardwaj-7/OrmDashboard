@@ -172,6 +172,14 @@ export interface CompetitorCard {
   updatedAt: string;
 }
 
+export interface CompetitorOverview {
+  totalMentions: number;
+  totalPosts: number;
+  totalComments: number;
+  activeCardsCount: number;
+  totalCardsCount: number;
+}
+
 export interface CronLogItem {
   timestamp: string;
   platform: string;

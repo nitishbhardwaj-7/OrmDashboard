@@ -16,7 +16,7 @@ export interface ItemFilters {
 }
 
 function postWhere(f: ItemFilters): Prisma.PostWhereInput {
-  const where: Prisma.PostWhereInput = {};
+  const where: Prisma.PostWhereInput = { isCompetitor: false };
   if (f.keyword) where.keyword = { term: f.keyword };
   if (f.sentiment) where.sentiment = f.sentiment;
   if (f.author) where.author = { contains: f.author };
@@ -43,7 +43,7 @@ function postWhere(f: ItemFilters): Prisma.PostWhereInput {
 }
 
 function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
-  const where: Prisma.CommentWhereInput = {};
+  const where: Prisma.CommentWhereInput = { isCompetitor: false };
   if (f.keyword) where.keyword = { term: f.keyword };
   if (f.sentiment) where.sentiment = f.sentiment;
   if (f.author) where.author = { contains: f.author };
@@ -69,6 +69,28 @@ function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
     ];
   }
   return where;
+}
+
+export async function purgeSeedKeyword() {
+  try {
+    const seedKws = await prisma.keyword.findMany({
+      where: {
+        OR: [
+          { term: { equals: "seed", mode: "insensitive" } },
+          { term: { equals: "Seed", mode: "insensitive" } },
+        ],
+      },
+    });
+
+    for (const kw of seedKws) {
+      await prisma.comment.deleteMany({ where: { keywordId: kw.id } });
+      await prisma.post.deleteMany({ where: { keywordId: kw.id } });
+      await prisma.scrapeRun.deleteMany({ where: { keywordId: kw.id } });
+      await prisma.keyword.delete({ where: { id: kw.id } }).catch(() => {});
+    }
+  } catch (e) {
+    // Ignore if DB busy
+  }
 }
 
 export async function getOverview(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
@@ -157,10 +179,20 @@ export async function getItems(f: ItemFilters) {
 }
 
 export async function getKeywords() {
-  return prisma.keyword.findMany({
+  await purgeSeedKeyword();
+
+  const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
+  const competitorTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
+
+  const all = await prisma.keyword.findMany({
+    where: {
+      term: { notIn: ["seed", "Seed", "SEED"] },
+    },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { posts: true, comments: true } } },
   });
+
+  return all.filter((kw) => !competitorTerms.has(kw.term.toLowerCase().trim()));
 }
 
 export async function getSentimentDistribution(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
@@ -168,11 +200,26 @@ export async function getSentimentDistribution(keyword?: string, platform?: stri
 }
 
 export async function getSentimentByKeyword() {
-  const keywords = await prisma.keyword.findMany();
+  await purgeSeedKeyword();
+
+  const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
+  const competitorTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
+
+  const keywords = await prisma.keyword.findMany({
+    where: {
+      term: { notIn: ["seed", "Seed", "SEED"] },
+    },
+  });
+
   const results = [];
   for (const kw of keywords) {
+    const termClean = kw.term.toLowerCase().trim();
+    if (competitorTerms.has(termClean)) continue;
+
     const overview = await getOverview(kw.term);
-    results.push({ keyword: kw.term, ...overview });
+    if (overview.totalMentions > 0) {
+      results.push({ keyword: kw.term, ...overview });
+    }
   }
   return results;
 }

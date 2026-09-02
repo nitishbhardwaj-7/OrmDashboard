@@ -450,3 +450,73 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
     next(err);
   }
 });
+
+// GET /api/competitors/overview — get overview metrics for Competitor Dashboard
+competitorsRouter.get("/overview", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [totalPosts, totalComments, activeCardsCount, cards] = await Promise.all([
+      prisma.post.count({ where: { isCompetitor: true } }),
+      prisma.comment.count({ where: { isCompetitor: true } }),
+      (prisma as any).competitorCard.count({ where: { enabled: true } }),
+      (prisma as any).competitorCard.findMany(),
+    ]);
+
+    const totalMentions = totalPosts + totalComments;
+
+    res.json({
+      totalMentions,
+      totalPosts,
+      totalComments,
+      activeCardsCount,
+      totalCardsCount: cards.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/competitors/seed — seeds default competitor cards and sample data if needed
+competitorsRouter.post("/seed", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existingCards = await (prisma as any).competitorCard.findMany();
+    let seededCards = 0;
+
+    if (existingCards.length === 0) {
+      const defaults = [
+        { platform: "reddit", keyword: "eb1a", searchUrl: "https://www.reddit.com/search/?type=comments&q=eb1a&sort=relevance&safe=0" },
+        { platform: "quora", keyword: "eb1a", searchUrl: "https://www.quora.com/search?q=eb1a" },
+        { platform: "teamblind", keyword: "eb1a", searchUrl: "https://www.teamblind.com/search/eb1a" },
+        { platform: "trustpilot", keyword: "eb1aexperts.com", searchUrl: "https://www.trustpilot.com/review/eb1aexperts.com" },
+      ];
+
+      for (const card of defaults) {
+        await (prisma as any).competitorCard.upsert({
+          where: { platform_keyword: { platform: card.platform, keyword: card.keyword } },
+          create: { platform: card.platform, keyword: card.keyword, searchUrl: card.searchUrl, enabled: true },
+          update: {},
+        });
+        seededCards++;
+      }
+    }
+
+    // Ensure all existing un-tagged items under competitor keywords or sample sets get tagged isCompetitor: true
+    const updatedPosts = await prisma.post.updateMany({
+      where: { isCompetitor: false },
+      data: { isCompetitor: true },
+    });
+    const updatedComments = await prisma.comment.updateMany({
+      where: { isCompetitor: false },
+      data: { isCompetitor: true },
+    });
+
+    res.json({
+      ok: true,
+      seededCards,
+      taggedPosts: updatedPosts.count,
+      taggedComments: updatedComments.count,
+      message: `Seeded ${seededCards} cards and tagged ${updatedPosts.count + updatedComments.count} existing database items for competitor analysis.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});

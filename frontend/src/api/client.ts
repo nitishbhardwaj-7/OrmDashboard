@@ -13,6 +13,7 @@ import type {
   ManualScrapeResult,
   PlatformKeywordCard,
   CompetitorCard,
+  CompetitorOverview,
   CronStatus,
   GoogleMentionsResponse,
   GoogleStatsResponse,
@@ -202,4 +203,8 @@ export const api = {
 
   getCompetitorItems: (filters: { platform?: string; search?: string; page?: number; pageSize?: number }) =>
     request<ItemsResponse>(`/competitors/items${toQuery(filters)}`),
+
+  getCompetitorOverview: () => request<CompetitorOverview>("/competitors/overview"),
+
+  seedCompetitors: () => request<{ ok: boolean; seededCards: number; taggedPosts: number; taggedComments: number; message: string }>("/competitors/seed", { method: "POST" }),
 };

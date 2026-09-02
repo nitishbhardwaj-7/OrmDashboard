@@ -12,13 +12,15 @@ import { platformKeywordsRouter } from "./routes/platformKeywords";
 import { googleScraperRouter } from "./routes/googleScraper";
 import { competitorsRouter } from "./routes/competitors";
 import { startHourlyScraperCron } from "./services/cronScheduler";
+import { purgeSeedKeyword } from "./services/queryService";
 
 const app = express();
 
-// Auto sync Prisma schema on server startup
+// Auto sync Prisma schema on server startup & purge seed keyword
 try {
   console.log("Ensuring Prisma database schema is in sync...");
   execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+  purgeSeedKeyword().catch(() => {});
 } catch (err: any) {
   console.warn("Notice: Prisma DB sync notice:", err?.message || err);
 }
