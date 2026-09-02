@@ -8,7 +8,6 @@ import { FailedPage } from "./pages/FailedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ManualScraperPage } from "./pages/ManualScraperPage";
 import { GoogleScraperPage } from "./pages/GoogleScraperPage";
-import { CompetitorAnalysisPage } from "./pages/CompetitorAnalysisPage";
 import { CompetitorDashboardPage } from "./pages/CompetitorDashboardPage";
 
 export default function App() {
