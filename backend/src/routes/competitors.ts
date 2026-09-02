@@ -60,6 +60,12 @@ export async function runCompetitorScrapePipeline(
     if (existing) {
       postsSkippedExisting++;
       currentPostId = existing.id;
+      if (!existing.isCompetitor) {
+        await prisma.post.update({
+          where: { id: existing.id },
+          data: { isCompetitor: true },
+        });
+      }
     } else {
       const created = await prisma.post.create({
         data: {
@@ -111,6 +117,12 @@ export async function runCompetitorScrapePipeline(
 
         if (existingC) {
           commentsSkippedExisting++;
+          if (!existingC.isCompetitor) {
+            await prisma.comment.update({
+              where: { id: existingC.id },
+              data: { isCompetitor: true },
+            });
+          }
         } else {
           await prisma.comment.create({
             data: {
@@ -159,6 +171,12 @@ export async function runCompetitorScrapePipeline(
 
     if (existing) {
       commentsSkippedExisting++;
+      if (!existing.isCompetitor) {
+        await prisma.comment.update({
+          where: { id: existing.id },
+          data: { isCompetitor: true },
+        });
+      }
     } else {
       await prisma.comment.create({
         data: {
@@ -346,6 +364,7 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
 
     if (platform && platform !== "all") {
       wherePost.platform = platform.toLowerCase();
+      whereComment.post = { platform: platform.toLowerCase() };
     }
     if (search.trim()) {
       wherePost.OR = [
@@ -367,7 +386,7 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
       }),
       prisma.comment.findMany({
         where: whereComment,
-        include: { keyword: true },
+        include: { keyword: true, post: true },
         orderBy: { publishedAt: "desc" },
       }),
     ]);
@@ -394,7 +413,7 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
       ...comments.map((c) => ({
         id: c.id,
         type: "comment" as const,
-        platform: "comment",
+        platform: c.post?.platform || "web",
         keyword: c.keyword.term,
         text: c.text || "",
         url: c.url,
