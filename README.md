@@ -53,6 +53,8 @@ APIFY_INPUT_TEMPLATE={"searchTerms":["{{keyword}}"],"maxItems":100}   # match yo
 AI_API_URL=...           # e.g. https://api.openai.com/v1/chat/completions
 AI_API_KEY=...
 AI_MODEL=gpt-4o-mini
+
+SERPER_API_KEY=...       # e.g. https://serper.dev API key for Google SERP scraping
 ```
 
 See the comments in [backend/.env.example](backend/.env.example) for the full list of options (timeouts, concurrency, CORS origin, database URL).
@@ -88,7 +90,7 @@ Opens on `http://localhost:5173`. `VITE_API_BASE_URL` in `frontend/.env` control
 
 1. Open the dashboard, type a keyword (e.g. `"Dubai real estate"`) into **Run a new Apify scrape**, and submit.
 2. The backend calls your configured Apify endpoint, stores the raw response untouched, normalizes it into posts/comments, then runs each item through the AI sentiment API.
-3. Results appear in **Overview** (stats + charts), **Posts & Comments** (filterable/searchable feed), **Negative Mentions**, **Neutral Mentions**, **Positive Mentions**, and global **Search**.
+3. Results appear in **Overview** (stats + charts), **Posts & Comments** (filterable/searchable feed), **Competitor Analysis** (basic competitor card scraping without AI sentiment), **Negative Mentions**, **Neutral Mentions**, **Positive Mentions**, and global **Search**.
 4. Items where sentiment analysis failed (AI error, rate limit, etc.) show up under **Failed / Retry** — the original scraped data and text are preserved, and you can retry analysis without re-scraping.
 
 ## Adapting to your actual Apify response

@@ -20,6 +20,32 @@ let lastScanAdded = 0;
 
 const sseClients: Response[] = [];
 
+function safeParseDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
+
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d;
+
+  const str = String(val).toLowerCase().trim();
+  const relMatch = str.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
+  if (relMatch) {
+    const num = parseInt(relMatch[1], 10);
+    const unit = relMatch[2];
+    const now = new Date();
+    if (unit === "second") now.setSeconds(now.getSeconds() - num);
+    else if (unit === "minute") now.setMinutes(now.getMinutes() - num);
+    else if (unit === "hour") now.setHours(now.getHours() - num);
+    else if (unit === "day") now.setDate(now.getDate() - num);
+    else if (unit === "week") now.setDate(now.getDate() - num * 7);
+    else if (unit === "month") now.setMonth(now.getMonth() - num);
+    else if (unit === "year") now.setFullYear(now.getFullYear() - num);
+    return now;
+  }
+
+  return new Date();
+}
+
 function broadcastSSE(event: string, data: any) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   sseClients.forEach((res) => {
@@ -31,7 +57,7 @@ function broadcastSSE(event: string, data: any) {
   });
 }
 
-function runPythonCommand(args: string[]): Promise<any> {
+export function runPythonCommand(args: string[]): Promise<any> {
   return new Promise((resolve, reject) => {
     const proc = spawn(pythonCmd, [scriptPath, ...args], {
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
@@ -189,6 +215,14 @@ googleScraperRouter.post("/scan", async (req: Request, res: Response, next: Next
           items.forEach((item) => broadcastSSE("mention", item));
         }
 
+        // Automatic Ingestion & AI Sentiment Analysis for every Google Scrape!
+        if (Array.isArray(items) && items.length > 0) {
+          const targetKeyword = (typeof keyword === "string" && keyword.trim()) ? keyword.trim() : "eb1a";
+          broadcastSSE("log", { line: `[SYS] Automatically ingesting ${items.length} Google mention(s) and executing AI sentiment analysis...` });
+          const ingestRes = await autoIngestGoogleItems(items, targetKeyword);
+          broadcastSSE("log", { line: `[SYS] ✓ Ingested ${ingestRes.postsCreated} new mention(s) into ORM Dashboard database (${ingestRes.analyzed} analyzed with AI sentiment)!` });
+        }
+
         // Broadcast stats
         const stats = await runPythonCommand(["--action", "stats"]).catch(() => ({}));
         broadcastSSE("stats", stats);
@@ -210,6 +244,99 @@ googleScraperRouter.post("/scan", async (req: Request, res: Response, next: Next
   }
 });
 
+// Helper for automatic ingestion & AI sentiment analysis of Google Mentions
+export async function autoIngestGoogleItems(items: any[], keyword?: string) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: true, postsCreated: 0, postsSkipped: 0, analyzed: 0, failed: 0 };
+  }
+
+  const term = (keyword || "eb1a").trim();
+  const dbKeyword = await prisma.keyword.upsert({
+    where: { term },
+    create: { term },
+    update: {},
+  });
+
+  const scrapeRun = await prisma.scrapeRun.create({
+    data: {
+      keywordId: dbKeyword.id,
+      status: ProcessingStatus.RECEIVED,
+      rawResponse: JSON.stringify(items),
+      itemCount: items.length,
+    },
+  });
+
+  let postsCreated = 0;
+  let postsSkipped = 0;
+  const createdPostIds: string[] = [];
+
+  for (const item of items) {
+    const sourceKey = buildSourceKey({
+      keyword: term,
+      type: "post",
+      id: item.id || item.norm_url || item.url,
+      url: item.url,
+      text: item.snippet || item.title,
+      author: item.domain || "google",
+    });
+
+    const existing = await prisma.post.findFirst({
+      where: {
+        OR: [
+          { sourceKey },
+          { AND: [{ keywordId: dbKeyword.id }, { url: item.url, NOT: { url: null } }] },
+        ],
+      },
+    });
+
+    if (existing) {
+      postsSkipped++;
+    } else {
+      const platform = (item.platform || "Web").toLowerCase();
+      const created = await prisma.post.create({
+        data: {
+          sourceKey,
+          keywordId: dbKeyword.id,
+          scrapeRunId: scrapeRun.id,
+          platform,
+          text: `${item.title || ''}\n\n${item.snippet || ''}`.trim(),
+          url: item.url || null,
+          author: item.domain || null,
+          publishedAt: safeParseDate(item.published),
+          rawItem: JSON.stringify(item),
+          status: ProcessingStatus.RECEIVED,
+        },
+      });
+      postsCreated++;
+      createdPostIds.push(created.id);
+    }
+  }
+
+  // Run AI sentiment analysis on newly created posts
+  let analyzed = 0;
+  let failed = 0;
+  for (const id of createdPostIds) {
+    const ok = await analyzePost(id);
+    ok ? analyzed++ : failed++;
+  }
+
+  await prisma.scrapeRun.update({
+    where: { id: scrapeRun.id },
+    data: { status: ProcessingStatus.ANALYZED, completedAt: new Date() },
+  });
+
+  return {
+    ok: true,
+    keyword: term,
+    itemsReceived: items.length,
+    postsCreated,
+    postsSkipped,
+    analyzed,
+    failed,
+    message: `Ingested ${postsCreated} new mention(s) into ORM Dashboard and ran AI sentiment analysis.`,
+  };
+}
+
 // 5) Ingest Google Mentions into ORM Dashboard database (Prisma)
 googleScraperRouter.post("/ingest", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -218,91 +345,8 @@ googleScraperRouter.post("/ingest", async (req: Request, res: Response, next: Ne
       return res.status(400).json({ error: "No mention items provided for ingestion." });
     }
 
-    const term = (keyword || "eb1a").trim();
-    const dbKeyword = await prisma.keyword.upsert({
-      where: { term },
-      create: { term },
-      update: {},
-    });
-
-    const scrapeRun = await prisma.scrapeRun.create({
-      data: {
-        keywordId: dbKeyword.id,
-        status: ProcessingStatus.RECEIVED,
-        rawResponse: JSON.stringify(items),
-        itemCount: items.length,
-      },
-    });
-
-    let postsCreated = 0;
-    let postsSkipped = 0;
-    const createdPostIds: string[] = [];
-
-    for (const item of items) {
-      const sourceKey = buildSourceKey({
-        keyword: term,
-        type: "post",
-        id: item.id || item.norm_url || item.url,
-        url: item.url,
-        text: item.snippet || item.title,
-        author: item.domain || "google",
-      });
-
-      const existing = await prisma.post.findFirst({
-        where: {
-          OR: [
-            { sourceKey },
-            { AND: [{ keywordId: dbKeyword.id }, { url: item.url, NOT: { url: null } }] },
-          ],
-        },
-      });
-
-      if (existing) {
-        postsSkipped++;
-      } else {
-        const platform = (item.platform || "Web").toLowerCase();
-        const created = await prisma.post.create({
-          data: {
-            sourceKey,
-            keywordId: dbKeyword.id,
-            scrapeRunId: scrapeRun.id,
-            platform,
-            text: `${item.title || ''}\n\n${item.snippet || ''}`.trim(),
-            url: item.url || null,
-            author: item.domain || null,
-            publishedAt: item.published ? new Date(item.published) : new Date(),
-            rawItem: JSON.stringify(item),
-            status: ProcessingStatus.RECEIVED,
-          },
-        });
-        postsCreated++;
-        createdPostIds.push(created.id);
-      }
-    }
-
-    // Run AI sentiment analysis on newly created posts
-    let analyzed = 0;
-    let failed = 0;
-    for (const id of createdPostIds) {
-      const ok = await analyzePost(id);
-      ok ? analyzed++ : failed++;
-    }
-
-    await prisma.scrapeRun.update({
-      where: { id: scrapeRun.id },
-      data: { status: ProcessingStatus.ANALYZED, completedAt: new Date() },
-    });
-
-    res.json({
-      ok: true,
-      keyword: term,
-      itemsReceived: items.length,
-      postsCreated,
-      postsSkipped,
-      analyzed,
-      failed,
-      message: `Ingested ${postsCreated} new mention(s) into ORM Dashboard and ran sentiment analysis.`,
-    });
+    const result = await autoIngestGoogleItems(items, keyword);
+    res.json(result);
   } catch (err) {
     next(err);
   }

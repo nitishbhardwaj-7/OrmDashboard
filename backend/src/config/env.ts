@@ -31,21 +31,23 @@ export const env = {
   APIFY_QUERY_PARAMS: optional("APIFY_QUERY_PARAMS"),
   APIFY_TIMEOUT_MS: Number(optional("APIFY_TIMEOUT_MS", "120000")),
 
-  AI_API_URL: optional("AI_API_URL"),
-  AI_API_KEY: optional("AI_API_KEY"),
-  AI_MODEL: optional("AI_MODEL", "gemini-3.5-flash-lite"),
+  AI_API_URL: optional("AI_API_URL", "https://api.mistral.ai/v1/chat/completions"),
+  AI_API_KEY: optional("AI_API_KEY") || optional("MISTRAL_API_KEY"),
+  AI_MODEL: optional("AI_MODEL", "mistral-small-latest"),
   AI_CONCURRENCY: Number(optional("AI_CONCURRENCY", "3")),
 
   RESEND_API_KEY: optional("RESEND_API_KEY"),
   ALERT_EMAIL: optional("ALERT_EMAIL", "delivered@resend.dev"),
 
-  SEARCHAPI_KEY: optional("SEARCHAPI_KEY"),
+  SERPER_API_KEY: optional("SERPER_API_KEY") || optional("SEARCHAPI_KEY"),
+  SEARCHAPI_KEY: optional("SEARCHAPI_KEY") || optional("SERPER_API_KEY"),
   MONGODB_URI: optional("MONGODB_URI"),
   MONGODB_DB: optional("MONGODB_DB", "brandmonitor"),
   DATABASE_URL: getDatabaseUrl(),
 };
 
 export function getSettings() {
+  const serperKey = env.SERPER_API_KEY || env.SEARCHAPI_KEY;
   return {
     apifyApiUrl: env.APIFY_API_URL,
     apifyApiKey: env.APIFY_API_KEY,
@@ -54,14 +56,16 @@ export function getSettings() {
     aiModel: env.AI_MODEL,
     resendApiKey: env.RESEND_API_KEY,
     alertEmail: env.ALERT_EMAIL,
-    searchApiKey: env.SEARCHAPI_KEY,
+    searchApiKey: serperKey,
+    serperApiKey: serperKey,
     mongodbUri: env.MONGODB_URI,
     mongodbDb: env.MONGODB_DB,
     databaseUrl: env.DATABASE_URL,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
     resendConfigured: Boolean(env.RESEND_API_KEY),
-    searchApiConfigured: Boolean(env.SEARCHAPI_KEY),
+    searchApiConfigured: Boolean(serperKey),
+    serperApiConfigured: Boolean(serperKey),
     databaseConfigured: Boolean(env.DATABASE_URL),
   };
 }
@@ -75,6 +79,7 @@ export interface SettingsUpdatePayload {
   resendApiKey?: string;
   alertEmail?: string;
   searchApiKey?: string;
+  serperApiKey?: string;
   mongodbUri?: string;
   mongodbDb?: string;
   databaseUrl?: string;
@@ -109,9 +114,12 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     env.ALERT_EMAIL = updates.alertEmail.trim();
     process.env.ALERT_EMAIL = env.ALERT_EMAIL;
   }
-  if (updates.searchApiKey !== undefined) {
-    env.SEARCHAPI_KEY = updates.searchApiKey.trim();
-    process.env.SEARCHAPI_KEY = env.SEARCHAPI_KEY;
+  const newSerperKey = updates.serperApiKey !== undefined ? updates.serperApiKey.trim() : (updates.searchApiKey !== undefined ? updates.searchApiKey.trim() : undefined);
+  if (newSerperKey !== undefined) {
+    env.SERPER_API_KEY = newSerperKey;
+    env.SEARCHAPI_KEY = newSerperKey;
+    process.env.SERPER_API_KEY = newSerperKey;
+    process.env.SEARCHAPI_KEY = newSerperKey;
   }
   if (updates.mongodbUri !== undefined) {
     env.MONGODB_URI = updates.mongodbUri.trim();
@@ -143,6 +151,7 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     AI_MODEL: env.AI_MODEL,
     RESEND_API_KEY: env.RESEND_API_KEY,
     ALERT_EMAIL: env.ALERT_EMAIL,
+    SERPER_API_KEY: env.SERPER_API_KEY,
     SEARCHAPI_KEY: env.SEARCHAPI_KEY,
     MONGODB_URI: env.MONGODB_URI,
     MONGODB_DB: env.MONGODB_DB,

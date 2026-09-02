@@ -24,6 +24,9 @@ export function Layout() {
         <NavLink to="/manual-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Keywords Cards
         </NavLink>
+        <NavLink to="/competitor-analysis" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          Competitor Analysis
+        </NavLink>
         <NavLink to="/google-scraper" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           Google Scraper
         </NavLink>

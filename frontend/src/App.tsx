@@ -8,6 +8,7 @@ import { FailedPage } from "./pages/FailedPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ManualScraperPage } from "./pages/ManualScraperPage";
 import { GoogleScraperPage } from "./pages/GoogleScraperPage";
+import { CompetitorAnalysisPage } from "./pages/CompetitorAnalysisPage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route index element={<OverviewPage />} />
         <Route path="explorer" element={<ExplorerPage />} />
         <Route path="manual-scraper" element={<ManualScraperPage />} />
+        <Route path="competitor-analysis" element={<CompetitorAnalysisPage />} />
         <Route path="google-scraper" element={<GoogleScraperPage />} />
         <Route path="negative" element={<SentimentSectionPage title="Negative Mentions" kind="negative" />} />
         <Route path="neutral" element={<SentimentSectionPage title="Neutral Mentions" kind="neutral" />} />

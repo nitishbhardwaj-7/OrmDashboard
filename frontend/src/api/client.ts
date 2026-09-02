@@ -12,6 +12,7 @@ import type {
   ManualScrapePayload,
   ManualScrapeResult,
   PlatformKeywordCard,
+  CompetitorCard,
   CronStatus,
   GoogleMentionsResponse,
   GoogleStatsResponse,
@@ -177,4 +178,28 @@ export const api = {
     }),
 
   getGoogleStreamUrl: () => `${BASE_URL}/google-scraper/stream`,
+
+  // Competitor Analysis APIs
+  getCompetitorCards: () => request<{ cards: CompetitorCard[] }>("/competitor-cards/cards"),
+
+  createCompetitorCard: (data: { platform: string; keyword: string; searchUrl?: string }) =>
+    request<{ ok: boolean; card: CompetitorCard }>("/competitor-cards/cards", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deleteCompetitorCard: (id: string) =>
+    request<{ ok: boolean; message: string }>(`/competitor-cards/cards/${id}`, { method: "DELETE" }),
+
+  toggleCompetitorCard: (id: string) =>
+    request<{ ok: boolean; card: CompetitorCard }>(`/competitor-cards/cards/${id}/toggle`, { method: "PATCH" }),
+
+  runCompetitorCardNow: (id: string) =>
+    request<{ ok: boolean; result: any }>(`/competitor-cards/cards/run-card/${id}`, { method: "POST" }),
+
+  runAllCompetitorCardsNow: () =>
+    request<{ ok: boolean; message: string; newItems?: number }>("/competitor-cards/cards/run-all", { method: "POST" }),
+
+  getCompetitorItems: (filters: { platform?: string; search?: string; page?: number; pageSize?: number }) =>
+    request<ItemsResponse>(`/competitors/items${toQuery(filters)}`),
 };

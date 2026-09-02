@@ -111,7 +111,7 @@ export function SettingsPage() {
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              SearchApi / Google
+              Serper / Google
             </div>
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
               {settings.searchApiConfigured ? "Ready" : "Incomplete"}
@@ -247,24 +247,24 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {/* Google Scraper & SearchApi.io Settings Card */}
+        {/* Google Scraper & Serper.dev Settings Card */}
         <div className="card settings-section">
           <div style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>🔍 Google Scraper &amp; SearchApi.io Integration</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>🔍 Google Scraper &amp; Serper.dev Integration</h3>
             <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Configure your SearchApi.io API key for Google, Google News, Bing, and YouTube SERP scraping.
+              Configure your Serper.dev API key (`SERPER_API_KEY`) for Google Web and News SERP scraping.
             </span>
           </div>
 
           <div className="settings-form-group">
-            <label htmlFor="searchApiKey">SearchApi.io API Key</label>
+            <label htmlFor="searchApiKey">Serper.dev API Key (`SERPER_API_KEY`)</label>
             <div className="input-with-button">
               <input
                 id="searchApiKey"
                 type={showSearchApiKey ? "text" : "password"}
                 value={settings.searchApiKey ?? ""}
                 onChange={(e) => setSettings({ ...settings, searchApiKey: e.target.value })}
-                placeholder="Enter SearchApi.io API Key"
+                placeholder="Enter Serper.dev API Key"
               />
               <button
                 type="button"
@@ -275,7 +275,7 @@ export function SettingsPage() {
                 {showSearchApiKey ? "Hide" : "Show"}
               </button>
             </div>
-            <span className="field-hint">Used by python scraper to query Google Web, News, Bing, and YouTube SERP results.</span>
+            <span className="field-hint">Used by python scraper to query Google Web &amp; News SERP results via Serper.dev API.</span>
           </div>
 
           <div className="settings-form-group" style={{ marginTop: 16 }}>

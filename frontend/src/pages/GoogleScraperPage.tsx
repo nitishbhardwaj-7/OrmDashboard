@@ -275,7 +275,7 @@ export function GoogleScraperPage() {
             </span>
           </div>
           <p className="page-subtitle">
-            Search &amp; track brand mentions from Google Web, Google News, Bing &amp; YouTube using SearchApi.io
+            Search &amp; track brand mentions from Google Web &amp; Google News using Serper.dev API (`SERPER_API_KEY`). Every scrape is automatically ingested and sentiment-analyzed by Mistral AI. Background cron runs automatically every 1 hour.
           </p>
         </div>
         <div style={{ textAlign: "right" }}>

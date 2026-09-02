@@ -24,6 +24,20 @@ model PlatformKeyword {
   @@unique([platform, keyword])
 }
 
+// Competitor Card registered for competitor analysis (basic scraping without AI sentiment analysis).
+model CompetitorCard {
+  id          String    @id @default(cuid())
+  platform    String    // "reddit" | "quora" | "teamblind" | "trustpilot" | "all"
+  keyword     String
+  searchUrl   String?
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([platform, keyword])
+}
+
 model Keyword {
   id        String   @id @default(cuid())
   term      String   @unique
@@ -82,6 +96,7 @@ model Post {
   processingError String?
   analyzedAt    DateTime?
   alertSent     Boolean  @default(false)
+  isCompetitor  Boolean  @default(false)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -92,6 +107,7 @@ model Post {
   @@index([sentiment])
   @@index([status])
   @@index([publishedAt])
+  @@index([isCompetitor])
 }
 
 model Comment {
@@ -122,6 +138,7 @@ model Comment {
   processingError String?
   analyzedAt    DateTime?
   alertSent     Boolean  @default(false)
+  isCompetitor  Boolean  @default(false)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -131,4 +148,5 @@ model Comment {
   @@index([sentiment])
   @@index([status])
   @@index([publishedAt])
+  @@index([isCompetitor])
 }

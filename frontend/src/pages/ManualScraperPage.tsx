@@ -94,7 +94,7 @@ export function ManualScraperPage() {
       const res = await api.runPlatformCardNow(card.id, {
         platform: card.platform,
         keyword: card.keyword,
-        searchUrl: card.searchUrl,
+        searchUrl: card.searchUrl || undefined,
       });
       setResult(res.result);
       const newItems = (res.result.postsCreated || 0) + (res.result.commentsCreated || 0);

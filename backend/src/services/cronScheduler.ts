@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { runPythonSocialScraper } from "./pythonScraperService";
 import { runManualScrapePipeline } from "../routes/manualScraper";
+import { runPythonCommand, autoIngestGoogleItems } from "../routes/googleScraper";
 
 export interface CronLog {
   timestamp: string;
@@ -133,9 +134,41 @@ export async function executeHourlyScrapeCycle() {
       }
     }
 
+    // 2) Google SERP Scraper (Serper API) - 1-hour automated cron
+    try {
+      console.log(`⏰ [Hourly Scraper] Scraping Google SERP (Serper API)...`);
+      const googleKeyword = "EB1A Experts";
+      const rawGoogleItems = await runPythonCommand(["--action", "scan", "--keyword", googleKeyword, "--json"]);
+      if (Array.isArray(rawGoogleItems) && rawGoogleItems.length > 0) {
+        const ingestRes = await autoIngestGoogleItems(rawGoogleItems, googleKeyword);
+        totalNewItems += ingestRes.postsCreated;
+        const gLogMsg: CronLog = {
+          timestamp: new Date().toISOString(),
+          platform: "google",
+          keyword: googleKeyword,
+          status: "SUCCESS",
+          newItems: ingestRes.postsCreated,
+          message: `Added ${ingestRes.postsCreated} new items (${ingestRes.postsSkipped} duplicates skipped, ${ingestRes.analyzed} AI sentiment analyzed).`,
+        };
+        cronLogs.push(gLogMsg);
+        console.log(`✓ [Hourly Scraper] GOOGLE: ${gLogMsg.message}`);
+      }
+    } catch (gErr: any) {
+      const gErrLog: CronLog = {
+        timestamp: new Date().toISOString(),
+        platform: "google",
+        keyword: "EB1A Experts",
+        status: "FAILED",
+        newItems: 0,
+        message: gErr.message || "Failed to scrape Google SERP.",
+      };
+      cronLogs.push(gErrLog);
+      console.error(`⚠ [Hourly Scraper] Error scraping Google SERP: ${gErr.message}`);
+    }
+
     return {
       ok: true,
-      message: `Hourly scrape cycle completed. ${totalNewItems} new mentions added across ${targets.length} platform keywords.`,
+      message: `Hourly scrape cycle completed. ${totalNewItems} new mentions added across platform keywords & Google SERP.`,
       newItems: totalNewItems,
     };
   } finally {

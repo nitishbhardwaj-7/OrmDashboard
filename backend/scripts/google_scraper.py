@@ -18,11 +18,17 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+try:
+    import trafilatura
+except ImportError:
+    trafilatura = None
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BACKEND_ROOT = os.path.dirname(ROOT)
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 ENV_PATH = os.path.join(BACKEND_ROOT, ".env")
-API_URL = "https://www.searchapi.io/api/v1/search"
+SERPER_SEARCH_URL = "https://google.serper.dev/search"
+SERPER_NEWS_URL = "https://google.serper.dev/news"
 
 TRACKING_PREFIXES = re.compile(r"^(utm_|mc_|_ga|s_kwcid|pk_|piwik_)", re.I)
 
@@ -74,7 +80,7 @@ def load_env(path=ENV_PATH):
                     continue
                 key, _, val = line.partition("=")
                 env[key.strip()] = val.strip().strip('"').strip("'")
-    known = ["SEARCHAPI_KEY", "SMTP_HOST", "SMTP_PORT", "SMTP_USER",
+    known = ["SERPER_API_KEY", "SEARCHAPI_KEY", "SMTP_HOST", "SMTP_PORT", "SMTP_USER",
              "SMTP_PASS", "MAIL_FROM", "MAIL_TO", "SLACK_WEBHOOK",
              "MONGODB_URI", "MONGODB_DB"]
     for key in list(env) + known:
@@ -701,7 +707,24 @@ def mention_id(norm_url):
     return hashlib.sha256(norm_url.encode("utf-8")).hexdigest()[:32]
 
 
-class SearchApi:
+def extract_content(url, fallback_snippet=""):
+    """Pull readable text from result URL using trafilatura, capping length at 6000 chars."""
+    if trafilatura is None:
+        return fallback_snippet
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            return fallback_snippet
+        text = trafilatura.extract(downloaded) or ""
+        text = text.strip()
+        return text[:6000] if text else fallback_snippet
+    except Exception as exc:
+        log("Content extraction notice for %s: %s" % (url, exc))
+        return fallback_snippet
+
+
+class SerperDevApi:
+    """Serper.dev SERP API Client."""
     def __init__(self, api_key, timeout=30, max_retries=3, delay=0.5):
         self.api_key = api_key
         self.timeout = timeout
@@ -711,18 +734,27 @@ class SearchApi:
         self.quota_exhausted = False
 
     def search(self, engine, query, page=1, extra=None):
-        params = {"engine": engine, "q": query}
-        if extra:
-            params.update({k: v for k, v in extra.items() if not k.startswith("_")})
+        endpoint = SERPER_NEWS_URL if engine == "google_news" else SERPER_SEARCH_URL
+        payload = {"q": query, "num": 10}
         if page > 1:
-            params["page"] = page
+            payload["page"] = page
+        if extra and isinstance(extra, dict):
+            if "gl" in extra:
+                payload["gl"] = extra["gl"]
+            if "hl" in extra:
+                payload["hl"] = extra["hl"]
 
-        url = API_URL + "?" + urllib.parse.urlencode(params)
-        req = urllib.request.Request(url, headers={
-            "Authorization": "Bearer %s" % self.api_key,
-            "Accept": "application/json",
-            "User-Agent": UA,
-        })
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint,
+            data=data_bytes,
+            headers={
+                "X-API-KEY": self.api_key,
+                "Content-Type": "application/json",
+                "User-Agent": UA,
+            },
+            method="POST"
+        )
 
         last_err = None
         for attempt in range(1, self.max_retries + 1):
@@ -739,13 +771,10 @@ class SearchApi:
                     pass
                 last_err = "HTTP %s %s" % (exc.code, body)
                 if exc.code in (401, 403):
-                    die("SearchApi rejected key (HTTP %s): %s" % (exc.code, body))
+                    die("Serper API rejected key (HTTP %s): %s" % (exc.code, body))
                 if exc.code == 429:
-                    if "month" in body.lower() or "upgrade" in body.lower():
-                        self.quota_exhausted = True
-                        raise QuotaError(body)
-                    time.sleep(5 * attempt)
-                    continue
+                    self.quota_exhausted = True
+                    raise QuotaError(body)
                 if 400 <= exc.code < 500:
                     break
             except Exception as exc:
@@ -757,33 +786,36 @@ class SearchApi:
         return None
 
 
+# Backward-compatibility alias
+SearchApi = SerperDevApi
+
+
 def extract_results(engine, payload):
     if not payload:
         return []
 
-    if engine == "youtube":
-        out = []
-        for it in payload.get("videos") or []:
-            channel = it.get("channel") or {}
-            out.append({
-                "url": it.get("link"),
-                "title": it.get("title"),
-                "snippet": (it.get("description") or "")[:500],
-                "published": it.get("published_time"),
-                "extra": channel.get("title") if isinstance(channel, dict) else None,
-            })
-        return [r for r in out if r["url"]]
-
+    # Serper.dev returns 'organic' for web, 'news' for google_news, 'videos' for youtube
+    raw_list = (
+        payload.get("organic") or
+        payload.get("news") or
+        payload.get("videos") or
+        payload.get("organic_results") or
+        []
+    )
     out = []
-    for it in payload.get("organic_results") or []:
+    for it in raw_list:
+        link = it.get("link") or it.get("url")
+        if not link:
+            continue
+        snippet = it.get("snippet") or it.get("description") or ""
         out.append({
-            "url": it.get("link"),
-            "title": it.get("title"),
-            "snippet": (it.get("snippet") or "")[:500],
-            "published": it.get("iso_date") or it.get("date"),
+            "url": link,
+            "title": it.get("title") or "(no title)",
+            "snippet": snippet[:1000],
+            "published": it.get("date") or it.get("published_time") or it.get("iso_date") or "",
             "extra": it.get("source"),
         })
-    return [r for r in out if r["url"]]
+    return out
 
 
 def build_filter(cfg, brand_name_override=None):
@@ -957,15 +989,15 @@ def main():
             return
 
         # Action: scan
-        key = env.get("SEARCHAPI_KEY")
+        key = env.get("SERPER_API_KEY") or env.get("SEARCHAPI_KEY")
         if not key:
-            die("SEARCHAPI_KEY missing in .env")
+            die("SERPER_API_KEY missing in .env")
 
         api_cfg = cfg.get("api", {})
-        api = SearchApi(key,
-                        timeout=api_cfg.get("timeout_seconds", 30),
-                        max_retries=api_cfg.get("max_retries", 3),
-                        delay=api_cfg.get("delay_between_calls_seconds", 0.5))
+        api = SerperDevApi(key,
+                           timeout=api_cfg.get("timeout_seconds", 30),
+                           max_retries=api_cfg.get("max_retries", 3),
+                           delay=api_cfg.get("delay_between_calls_seconds", 0.5))
 
         new_items = collect(cfg, api, store, force=True, dry_run=args.dry_run,
                             keyword_override=args.keyword, engine_override=args.engine)

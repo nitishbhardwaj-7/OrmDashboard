@@ -152,11 +152,22 @@ export interface ManualScrapeResult {
 
 export interface PlatformKeywordCard {
   id: string;
-  platform: "reddit" | "quora" | "teamblind" | "trustpilot";
+  platform: string;
   keyword: string;
-  searchUrl?: string;
+  searchUrl?: string | null;
   enabled: boolean;
-  lastRunAt?: string;
+  lastRunAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompetitorCard {
+  id: string;
+  platform: string;
+  keyword: string;
+  searchUrl?: string | null;
+  enabled: boolean;
+  lastRunAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
