@@ -93,7 +93,63 @@ export async function purgeSeedKeyword() {
   }
 }
 
+let lastSyncTime = 0;
+
+export async function syncCompetitorFlags() {
+  const now = Date.now();
+  if (now - lastSyncTime < 30000) return;
+  lastSyncTime = now;
+
+  try {
+    const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
+    const compKeywordTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
+
+    const competitorNames = ["greencard inc.", "manifest law", "smart green card", "ellis porter", "alma law"];
+    competitorNames.forEach((n) => compKeywordTerms.add(n));
+
+    const allKeywords = await prisma.keyword.findMany();
+
+    const brandKwIds: string[] = [];
+    const compKwIds: string[] = [];
+
+    for (const kw of allKeywords) {
+      const termLower = kw.term.toLowerCase().trim();
+      if (compKeywordTerms.has(termLower)) {
+        compKwIds.push(kw.id);
+      } else {
+        brandKwIds.push(kw.id);
+      }
+    }
+
+    if (brandKwIds.length > 0) {
+      await prisma.post.updateMany({
+        where: { keywordId: { in: brandKwIds } },
+        data: { isCompetitor: false },
+      });
+      await prisma.comment.updateMany({
+        where: { keywordId: { in: brandKwIds } },
+        data: { isCompetitor: false },
+      });
+    }
+
+    if (compKwIds.length > 0) {
+      await prisma.post.updateMany({
+        where: { keywordId: { in: compKwIds } },
+        data: { isCompetitor: true },
+      });
+      await prisma.comment.updateMany({
+        where: { keywordId: { in: compKwIds } },
+        data: { isCompetitor: true },
+      });
+    }
+  } catch (e) {
+    // Ignore error
+  }
+}
+
 export async function getOverview(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
+  await syncCompetitorFlags().catch(() => {});
+
   const f: ItemFilters = {
     keyword,
     platform: (platform && platform !== "all" ? platform : undefined) as any,
@@ -133,6 +189,8 @@ export async function getOverview(keyword?: string, platform?: string, dateFrom?
 }
 
 export async function getItems(f: ItemFilters) {
+  await syncCompetitorFlags().catch(() => {});
+
   const page = f.page && f.page > 0 ? f.page : 1;
   const pageSize = f.pageSize && f.pageSize > 0 ? Math.min(f.pageSize, 200) : 50;
   const skip = (page - 1) * pageSize;
@@ -180,6 +238,7 @@ export async function getItems(f: ItemFilters) {
 
 export async function getKeywords() {
   await purgeSeedKeyword();
+  await syncCompetitorFlags().catch(() => {});
 
   const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
   const competitorTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
@@ -201,6 +260,7 @@ export async function getSentimentDistribution(keyword?: string, platform?: stri
 
 export async function getSentimentByKeyword() {
   await purgeSeedKeyword();
+  await syncCompetitorFlags().catch(() => {});
 
   const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
   const competitorTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
