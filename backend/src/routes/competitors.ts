@@ -475,7 +475,56 @@ competitorsRouter.get("/overview", async (_req: Request, res: Response, next: Ne
   }
 });
 
-// POST /api/competitors/seed — seeds default competitor cards and sample data if needed
+export async function syncCompetitorFlags() {
+  try {
+    const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
+    const compKeywordTerms = competitorCards.map((c: any) => c.keyword.toLowerCase().trim());
+
+    // 1. Ensure all brand items (containing "eb1a") have isCompetitor: false
+    await prisma.post.updateMany({
+      where: {
+        keyword: {
+          term: { contains: "eb1a", mode: "insensitive" },
+        },
+      },
+      data: { isCompetitor: false },
+    });
+    await prisma.comment.updateMany({
+      where: {
+        keyword: {
+          term: { contains: "eb1a", mode: "insensitive" },
+        },
+      },
+      data: { isCompetitor: false },
+    });
+
+    // 2. Mark competitor keywords (e.g. GreenCard Inc., Manifest Law, Smart Green Card, Ellis Porter, Alma Law) as isCompetitor: true
+    const competitorKeywords = await prisma.keyword.findMany({
+      where: {
+        OR: [
+          { term: { in: ["GreenCard Inc.", "Manifest Law", "Smart Green Card", "Ellis Porter", "Alma Law"] } },
+          { term: { in: compKeywordTerms } },
+        ],
+      },
+    });
+
+    const compKwIds = competitorKeywords.map((k) => k.id);
+    if (compKwIds.length > 0) {
+      await prisma.post.updateMany({
+        where: { keywordId: { in: compKwIds } },
+        data: { isCompetitor: true },
+      });
+      await prisma.comment.updateMany({
+        where: { keywordId: { in: compKwIds } },
+        data: { isCompetitor: true },
+      });
+    }
+  } catch (e) {
+    console.warn("Notice syncing competitor flags:", e);
+  }
+}
+
+// POST /api/competitors/seed — seeds default competitor cards and classifies brand vs competitor items
 competitorsRouter.post("/seed", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const existingCards = await (prisma as any).competitorCard.findMany();
@@ -483,10 +532,10 @@ competitorsRouter.post("/seed", async (_req: Request, res: Response, next: NextF
 
     if (existingCards.length === 0) {
       const defaults = [
-        { platform: "reddit", keyword: "eb1a", searchUrl: "https://www.reddit.com/search/?type=comments&q=eb1a&sort=relevance&safe=0" },
-        { platform: "quora", keyword: "eb1a", searchUrl: "https://www.quora.com/search?q=eb1a" },
-        { platform: "teamblind", keyword: "eb1a", searchUrl: "https://www.teamblind.com/search/eb1a" },
-        { platform: "trustpilot", keyword: "eb1aexperts.com", searchUrl: "https://www.trustpilot.com/review/eb1aexperts.com" },
+        { platform: "reddit", keyword: "GreenCard Inc.", searchUrl: "https://www.reddit.com/search/?type=comments&q=GreenCard%20Inc&sort=relevance&safe=0" },
+        { platform: "quora", keyword: "Manifest Law", searchUrl: "https://www.quora.com/search?q=Manifest%20Law" },
+        { platform: "teamblind", keyword: "Smart Green Card", searchUrl: "https://www.teamblind.com/search/Smart%20Green%20Card" },
+        { platform: "trustpilot", keyword: "Ellis Porter", searchUrl: "https://www.trustpilot.com/search?query=Ellis%20Porter" },
       ];
 
       for (const card of defaults) {
@@ -499,22 +548,17 @@ competitorsRouter.post("/seed", async (_req: Request, res: Response, next: NextF
       }
     }
 
-    // Ensure all existing un-tagged items under competitor keywords or sample sets get tagged isCompetitor: true
-    const updatedPosts = await prisma.post.updateMany({
-      where: { isCompetitor: false },
-      data: { isCompetitor: true },
-    });
-    const updatedComments = await prisma.comment.updateMany({
-      where: { isCompetitor: false },
-      data: { isCompetitor: true },
-    });
+    await syncCompetitorFlags();
+
+    const brandPostsCount = await prisma.post.count({ where: { isCompetitor: false } });
+    const compPostsCount = await prisma.post.count({ where: { isCompetitor: true } });
 
     res.json({
       ok: true,
       seededCards,
-      taggedPosts: updatedPosts.count,
-      taggedComments: updatedComments.count,
-      message: `Seeded ${seededCards} cards and tagged ${updatedPosts.count + updatedComments.count} existing database items for competitor analysis.`,
+      brandPostsCount,
+      compPostsCount,
+      message: `Database synchronized cleanly: ${brandPostsCount} brand items on Overview Dashboard, ${compPostsCount} competitor items on Competitor Dashboard.`,
     });
   } catch (err) {
     next(err);

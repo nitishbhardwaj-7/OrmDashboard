@@ -10,17 +10,18 @@ import { settingsRouter } from "./routes/settings";
 import { manualScraperRouter } from "./routes/manualScraper";
 import { platformKeywordsRouter } from "./routes/platformKeywords";
 import { googleScraperRouter } from "./routes/googleScraper";
-import { competitorsRouter } from "./routes/competitors";
+import { competitorsRouter, syncCompetitorFlags } from "./routes/competitors";
 import { startHourlyScraperCron } from "./services/cronScheduler";
 import { purgeSeedKeyword } from "./services/queryService";
 
 const app = express();
 
-// Auto sync Prisma schema on server startup & purge seed keyword
+// Auto sync Prisma schema on server startup, purge seed keyword & sync competitor flags
 try {
   console.log("Ensuring Prisma database schema is in sync...");
   execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
   purgeSeedKeyword().catch(() => {});
+  syncCompetitorFlags().catch(() => {});
 } catch (err: any) {
   console.warn("Notice: Prisma DB sync notice:", err?.message || err);
 }
