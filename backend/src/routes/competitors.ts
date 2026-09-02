@@ -478,37 +478,36 @@ competitorsRouter.get("/overview", async (_req: Request, res: Response, next: Ne
 export async function syncCompetitorFlags() {
   try {
     const competitorCards = await (prisma as any).competitorCard.findMany().catch(() => []);
-    const compKeywordTerms = competitorCards.map((c: any) => c.keyword.toLowerCase().trim());
+    const compKeywordTerms = new Set(competitorCards.map((c: any) => c.keyword.toLowerCase().trim()));
 
-    // 1. Ensure all brand items (containing "eb1a") have isCompetitor: false
-    await prisma.post.updateMany({
-      where: {
-        keyword: {
-          term: { contains: "eb1a", mode: "insensitive" },
-        },
-      },
-      data: { isCompetitor: false },
-    });
-    await prisma.comment.updateMany({
-      where: {
-        keyword: {
-          term: { contains: "eb1a", mode: "insensitive" },
-        },
-      },
-      data: { isCompetitor: false },
-    });
+    const competitorNames = ["greencard inc.", "manifest law", "smart green card", "ellis porter", "alma law"];
+    competitorNames.forEach((n) => compKeywordTerms.add(n));
 
-    // 2. Mark competitor keywords (e.g. GreenCard Inc., Manifest Law, Smart Green Card, Ellis Porter, Alma Law) as isCompetitor: true
-    const competitorKeywords = await prisma.keyword.findMany({
-      where: {
-        OR: [
-          { term: { in: ["GreenCard Inc.", "Manifest Law", "Smart Green Card", "Ellis Porter", "Alma Law"] } },
-          { term: { in: compKeywordTerms } },
-        ],
-      },
-    });
+    const allKeywords = await prisma.keyword.findMany();
 
-    const compKwIds = competitorKeywords.map((k) => k.id);
+    const brandKwIds: string[] = [];
+    const compKwIds: string[] = [];
+
+    for (const kw of allKeywords) {
+      const termLower = kw.term.toLowerCase().trim();
+      if (compKeywordTerms.has(termLower)) {
+        compKwIds.push(kw.id);
+      } else {
+        brandKwIds.push(kw.id);
+      }
+    }
+
+    if (brandKwIds.length > 0) {
+      await prisma.post.updateMany({
+        where: { keywordId: { in: brandKwIds } },
+        data: { isCompetitor: false },
+      });
+      await prisma.comment.updateMany({
+        where: { keywordId: { in: brandKwIds } },
+        data: { isCompetitor: false },
+      });
+    }
+
     if (compKwIds.length > 0) {
       await prisma.post.updateMany({
         where: { keywordId: { in: compKwIds } },
