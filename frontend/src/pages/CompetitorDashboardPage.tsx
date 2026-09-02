@@ -16,7 +16,6 @@ export function CompetitorDashboardPage() {
 
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [runningAll, setRunningAll] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,33 +41,8 @@ export function CompetitorDashboardPage() {
       ]);
       setCards(cardsRes.cards || []);
       if (overviewRes) setOverview(overviewRes);
-
-      // Auto-seed if 0 cards or 0 mentions exist
-      if ((cardsRes.cards || []).length === 0 || (overviewRes && overviewRes.totalMentions === 0)) {
-        await handleSeed(true);
-      }
     } catch (err) {
       console.error("Failed to load competitor dashboard:", err);
-    }
-  }
-
-  async function handleSeed(silent = false) {
-    try {
-      setSeeding(true);
-      if (!silent) setError(null);
-      const res = await api.seedCompetitors();
-      if (!silent) setSuccessBanner(`✓ ${res.message}`);
-      const [cardsRes, overviewRes] = await Promise.all([
-        api.getCompetitorCards(),
-        api.getCompetitorOverview().catch(() => null),
-      ]);
-      setCards(cardsRes.cards || []);
-      if (overviewRes) setOverview(overviewRes);
-      fetchFeedData();
-    } catch (err: any) {
-      if (!silent) setError(err.message || "Failed to seed competitor data.");
-    } finally {
-      setSeeding(false);
     }
   }
 
@@ -170,17 +144,7 @@ export function CompetitorDashboardPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => handleSeed()}
-            disabled={seeding}
-            style={{ padding: "8px 14px", fontSize: 13 }}
-          >
-            {seeding ? "Seeding Data…" : "🌱 Seed Cards & Data"}
-          </button>
-
+        <div>
           <button
             type="button"
             onClick={handleRunAllCards}
