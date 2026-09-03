@@ -17,7 +17,7 @@ import {
 } from "../components/charts/Charts";
 
 export function OverviewPage() {
-  const [selectedPlatform, setSelectedPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "all">("all");
+  const [selectedPlatform, setSelectedPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange>({});
   const [overview, setOverview] = useState<Overview | null>(null);
   const [byKeyword, setByKeyword] = useState<SentimentByKeywordRow[]>([]);
@@ -77,7 +77,7 @@ export function OverviewPage() {
     loadData(selectedPlatform, dateRange);
   }, [selectedPlatform, dateRange]);
 
-  function handlePlatformTab(platform: "reddit" | "quora" | "teamblind" | "trustpilot" | "all") {
+  function handlePlatformTab(platform: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all") {
     setSelectedPlatform(platform);
   }
 
@@ -141,6 +141,13 @@ export function OverviewPage() {
             onClick={() => handlePlatformTab("trustpilot")}
           >
             Trustpilot
+          </button>
+          <button
+            type="button"
+            className={`preset-chip ${selectedPlatform === "linkedin" ? "active" : ""}`}
+            onClick={() => handlePlatformTab("linkedin")}
+          >
+            LinkedIn
           </button>
         </div>
       </div>

@@ -75,6 +75,7 @@ export function FilterBar({
         <option value="quora">Quora</option>
         <option value="teamblind">TeamBlind</option>
         <option value="trustpilot">Trustpilot</option>
+        <option value="linkedin">LinkedIn</option>
       </select>
 
       <select

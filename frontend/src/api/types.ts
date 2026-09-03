@@ -64,7 +64,7 @@ export interface ItemFiltersQuery {
   keyword?: string;
   sentiment?: Sentiment;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
   dateFrom?: string;
   dateTo?: string;
   author?: string;
@@ -130,7 +130,7 @@ export interface ManualScrapePayload {
   keyword: string;
   url?: string;
   limit?: number;
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
 }
 
 export interface ManualScrapeResult {

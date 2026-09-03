@@ -4,7 +4,7 @@ import type { ManualScrapeResult, PlatformKeywordCard, CronStatus } from "../api
 import { ItemList } from "../components/ItemList";
 
 export function ManualScraperPage() {
-  const [platform, setPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "all">("reddit");
+  const [platform, setPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all">("reddit");
   const [cards, setCards] = useState<PlatformKeywordCard[]>([]);
   const [cronStatus, setCronStatus] = useState<CronStatus | null>(null);
 
@@ -36,7 +36,7 @@ export function ManualScraperPage() {
     }
   }
 
-  function handlePlatformChange(newPlatform: "reddit" | "quora" | "teamblind" | "trustpilot" | "all") {
+  function handlePlatformChange(newPlatform: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all") {
     setPlatform(newPlatform);
     setNewKeyword("");
     setNewSearchUrl("");
@@ -148,7 +148,7 @@ export function ManualScraperPage() {
         <div>
           <h2>Social Scraper Engine &amp; Keyword Cards</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Manage keyword cards for Reddit, Quora, TeamBlind &amp; Trustpilot. Scrapers run automatically every 1 hour in background.
+            Manage keyword cards for Reddit, Quora, TeamBlind, Trustpilot &amp; LinkedIn. Scrapers run automatically every 1 hour in background.
           </p>
         </div>
 
@@ -222,7 +222,7 @@ export function ManualScraperPage() {
             </span>
           </div>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-dim)" }}>
-            Automatically scrapes every active keyword card across Reddit, Quora, TeamBlind, and Trustpilot every 60 minutes with live AI sentiment analysis and instant Resend email alerts.
+            Automatically scrapes every active keyword card across Reddit, Quora, TeamBlind, Trustpilot, and LinkedIn every 60 minutes with live AI sentiment analysis and instant Resend email alerts.
           </p>
         </div>
 
@@ -272,6 +272,14 @@ export function ManualScraperPage() {
               style={{ fontSize: 13, padding: "6px 14px" }}
             >
               Trustpilot Cards ({cards.filter((c) => c.platform === "trustpilot").length})
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${platform === "linkedin" ? "active" : ""}`}
+              onClick={() => handlePlatformChange("linkedin")}
+              style={{ fontSize: 13, padding: "6px 14px" }}
+            >
+              LinkedIn Cards ({cards.filter((c) => c.platform === "linkedin").length})
             </button>
             <button
               type="button"
@@ -346,6 +354,8 @@ export function ManualScraperPage() {
                       ? "#b92b27"
                       : card.platform === "teamblind"
                       ? "#00a4e4"
+                      : card.platform === "linkedin"
+                      ? "#0077b5"
                       : "#00b67a"
                   }`,
                   opacity: card.enabled ? 1 : 0.6,

@@ -12,6 +12,7 @@ const DEFAULT_SEEDS = [
   { platform: "quora", keyword: "eb1aexperts.com", searchUrl: "https://www.quora.com/search?q=eb1aexperts.com" },
   { platform: "teamblind", keyword: "eb1aexperts.com", searchUrl: "https://www.teamblind.com/search/eb1aexperts.com" },
   { platform: "trustpilot", keyword: "eb1aexperts.com", searchUrl: "https://www.trustpilot.com/review/eb1aexperts.com" },
+  { platform: "linkedin", keyword: "eb1aexperts.com", searchUrl: "https://www.linkedin.com/search/results/content/?keywords=eb1aexperts.com" },
 ];
 
 // GET /api/platform-keywords — list all registered keyword cards
@@ -52,8 +53,8 @@ platformKeywordsRouter.post("/", async (req, res, next) => {
     const cleanPlatform = String(platform).toLowerCase();
     const cleanKeyword = String(keyword).trim();
 
-    if (!["reddit", "quora", "teamblind", "trustpilot"].includes(cleanPlatform)) {
-      return res.status(400).json({ error: "Invalid platform. Must be reddit, quora, teamblind, or trustpilot." });
+    if (!["reddit", "quora", "teamblind", "trustpilot", "linkedin"].includes(cleanPlatform)) {
+      return res.status(400).json({ error: "Invalid platform. Must be reddit, quora, teamblind, trustpilot, or linkedin." });
     }
 
     let defaultUrl = searchUrl ? String(searchUrl).trim() : "";
@@ -64,6 +65,8 @@ platformKeywordsRouter.post("/", async (req, res, next) => {
       else if (cleanPlatform === "trustpilot") {
         const domain = cleanKeyword.replace("https://", "").replace("http://", "").replace("www.trustpilot.com/review/", "").split("/")[0];
         defaultUrl = `https://www.trustpilot.com/review/${domain}`;
+      } else if (cleanPlatform === "linkedin") {
+        defaultUrl = `https://www.linkedin.com/search/results/content/?keywords=${encoded}`;
       } else {
         defaultUrl = `https://www.reddit.com/search/?type=comments&q=${encoded}&sort=relevance&safe=0`;
       }

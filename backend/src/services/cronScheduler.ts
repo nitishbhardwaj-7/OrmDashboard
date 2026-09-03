@@ -71,12 +71,13 @@ export async function executeHourlyScrapeCycle() {
       where: { enabled: true },
     });
 
-    // If no custom platform keywords exist yet, default to seed keywords for all 4 platforms
+    // If no custom platform keywords exist yet, default to seed keywords for all 5 platforms
     const targets = activeKeywords.length > 0 ? activeKeywords : [
       { id: "default_r", platform: "reddit", keyword: "eb1aexperts.com", searchUrl: "https://www.reddit.com/search/?type=comments&q=eb1aexperts.com&sort=relevance&safe=0" },
       { id: "default_q", platform: "quora", keyword: "eb1aexperts.com", searchUrl: "https://www.quora.com/search?q=eb1aexperts.com" },
       { id: "default_b", platform: "teamblind", keyword: "eb1aexperts.com", searchUrl: "https://www.teamblind.com/search/eb1aexperts.com" },
       { id: "default_t", platform: "trustpilot", keyword: "eb1aexperts.com", searchUrl: "https://www.trustpilot.com/review/eb1aexperts.com" },
+      { id: "default_l", platform: "linkedin", keyword: "eb1aexperts.com", searchUrl: "https://www.linkedin.com/search/results/content/?keywords=eb1aexperts.com" },
     ];
 
     let totalNewItems = 0;

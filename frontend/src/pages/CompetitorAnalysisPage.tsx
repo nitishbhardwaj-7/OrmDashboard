@@ -181,6 +181,7 @@ export function CompetitorAnalysisPage() {
           { id: "quora", label: "Quora" },
           { id: "teamblind", label: "TeamBlind" },
           { id: "trustpilot", label: "Trustpilot" },
+          { id: "linkedin", label: "LinkedIn" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -216,6 +217,7 @@ export function CompetitorAnalysisPage() {
               <option value="quora">Quora</option>
               <option value="teamblind">TeamBlind</option>
               <option value="trustpilot">Trustpilot</option>
+              <option value="linkedin">LinkedIn</option>
             </select>
           </div>
 

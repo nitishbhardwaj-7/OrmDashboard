@@ -5,24 +5,26 @@ export interface PythonScraperOptions {
   keyword: string;
   url?: string;
   limit?: number;
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
 }
 
 export async function runPythonSocialScraper(options: PythonScraperOptions): Promise<any[]> {
   const platform = options.platform ?? "reddit";
 
   if (platform === "all") {
-    const [redditItems, quoraItems, blindItems, trustpilotItems] = await Promise.allSettled([
+    const [redditItems, quoraItems, blindItems, trustpilotItems, linkedinItems] = await Promise.allSettled([
       runSinglePlatformScraper({ ...options, platform: "reddit" }),
       runSinglePlatformScraper({ ...options, platform: "quora" }),
       runSinglePlatformScraper({ ...options, platform: "teamblind" }),
       runSinglePlatformScraper({ ...options, platform: "trustpilot" }),
+      runSinglePlatformScraper({ ...options, platform: "linkedin" }),
     ]);
     const rResult = redditItems.status === "fulfilled" ? redditItems.value : [];
     const qResult = quoraItems.status === "fulfilled" ? quoraItems.value : [];
     const bResult = blindItems.status === "fulfilled" ? blindItems.value : [];
     const tResult = trustpilotItems.status === "fulfilled" ? trustpilotItems.value : [];
-    return [...rResult, ...qResult, ...bResult, ...tResult];
+    const lResult = linkedinItems.status === "fulfilled" ? linkedinItems.value : [];
+    return [...rResult, ...qResult, ...bResult, ...tResult, ...lResult];
   }
 
   return runSinglePlatformScraper(options);
@@ -41,6 +43,8 @@ function runSinglePlatformScraper(options: PythonScraperOptions): Promise<any[]>
     scriptName = "manual_teamblind_scraper.py";
   } else if (options.platform === "trustpilot" || url.includes("trustpilot.com")) {
     scriptName = "manual_trustpilot_scraper.py";
+  } else if (options.platform === "linkedin" || url.includes("linkedin.com")) {
+    scriptName = "manual_linkedin_scraper.py";
   }
 
   const scriptPath = path.resolve(__dirname, `../../scripts/${scriptName}`);

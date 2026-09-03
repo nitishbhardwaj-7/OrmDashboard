@@ -21,7 +21,7 @@ function parseFilters(query: any): ItemFilters {
   if (query.type && ["post", "comment", "both"].includes(String(query.type))) {
     f.type = query.type;
   }
-  if (query.platform && ["reddit", "quora", "teamblind", "trustpilot", "all"].includes(String(query.platform).toLowerCase())) {
+  if (query.platform && ["reddit", "quora", "teamblind", "trustpilot", "linkedin", "all"].includes(String(query.platform).toLowerCase())) {
     f.platform = String(query.platform).toLowerCase() as ItemFilters["platform"];
   }
   if (query.author) f.author = String(query.author);

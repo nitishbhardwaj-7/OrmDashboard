@@ -6,7 +6,7 @@ export interface ItemFilters {
   keyword?: string;
   sentiment?: SentimentValue;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "all";
+  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
   dateFrom?: Date;
   dateTo?: Date;
   author?: string;
