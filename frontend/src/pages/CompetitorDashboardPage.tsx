@@ -11,6 +11,7 @@ export function CompetitorDashboardPage() {
   const [overview, setOverview] = useState<CompetitorOverview | null>(null);
 
   // New competitor card form state
+  const [formPlatform, setFormPlatform] = useState<string>("reddit");
   const [newKeyword, setNewKeyword] = useState("");
   const [newSearchUrl, setNewSearchUrl] = useState("");
 
@@ -57,7 +58,7 @@ export function CompetitorDashboardPage() {
   async function handleAddCard(e: React.FormEvent) {
     e.preventDefault();
     if (!newKeyword.trim()) return;
-    const targetPlatform = platform === "all" ? "reddit" : platform;
+    const targetPlatform = formPlatform;
 
     try {
       setError(null);
@@ -255,8 +256,8 @@ export function CompetitorDashboardPage() {
           <div>
             <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: "var(--text-dim)" }}>Platform</label>
             <select
-              value={platform === "all" ? "reddit" : platform}
-              onChange={(e) => setPlatform(e.target.value)}
+              value={formPlatform}
+              onChange={(e) => setFormPlatform(e.target.value)}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 6 }}
             >
               <option value="reddit">Reddit</option>
