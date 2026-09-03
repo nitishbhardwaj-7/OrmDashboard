@@ -248,6 +248,8 @@ competitorsRouter.post("/cards", async (req: Request, res: Response, next: NextF
       },
     });
 
+    await syncCompetitorFlags();
+
     res.json({ ok: true, card });
   } catch (err) {
     next(err);
@@ -259,6 +261,7 @@ competitorsRouter.delete("/cards/:id", async (req: Request, res: Response, next:
   try {
     const { id } = req.params;
     await (prisma as any).competitorCard.delete({ where: { id } });
+    await syncCompetitorFlags();
     res.json({ ok: true, message: "Competitor card deleted." });
   } catch (err) {
     next(err);
@@ -302,6 +305,7 @@ competitorsRouter.post("/cards/run-card/:id", async (req: Request, res: Response
     });
 
     const result = await runCompetitorScrapePipeline(keyword, platform, rawItems);
+    await syncCompetitorFlags();
 
     await (prisma as any).competitorCard.update({
       where: { id },
@@ -345,6 +349,8 @@ competitorsRouter.post("/cards/run-all", async (_req: Request, res: Response, ne
       }
     }
 
+    await syncCompetitorFlags();
+
     res.json({ ok: true, message: `Scraped ${activeCards.length} competitor card(s).`, newItems: totalNew });
   } catch (err) {
     next(err);
@@ -363,18 +369,23 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
     const whereComment: any = { isCompetitor: true };
 
     if (platform && platform !== "all") {
-      wherePost.platform = platform.toLowerCase();
-      whereComment.post = { platform: platform.toLowerCase() };
+      const platLower = platform.toLowerCase().trim();
+      wherePost.platform = { equals: platLower, mode: "insensitive" };
+      whereComment.OR = [
+        { post: { platform: { equals: platLower, mode: "insensitive" } } },
+        { url: { contains: platLower, mode: "insensitive" } },
+      ];
     }
     if (search.trim()) {
-      wherePost.OR = [
-        { text: { contains: search } },
-        { title: { contains: search } },
-        { author: { contains: search } },
+      const searchFilter = [
+        { text: { contains: search, mode: "insensitive" } },
+        { title: { contains: search, mode: "insensitive" } },
+        { author: { contains: search, mode: "insensitive" } },
       ];
+      wherePost.OR = searchFilter;
       whereComment.OR = [
-        { text: { contains: search } },
-        { author: { contains: search } },
+        { text: { contains: search, mode: "insensitive" } },
+        { author: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -391,11 +402,23 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
       }),
     ]);
 
+    const inferPlatform = (itemUrl: string | null, postPlat?: string | null) => {
+      if (postPlat) return postPlat;
+      if (!itemUrl) return "web";
+      const u = itemUrl.toLowerCase();
+      if (u.includes("quora")) return "quora";
+      if (u.includes("teamblind")) return "teamblind";
+      if (u.includes("trustpilot")) return "trustpilot";
+      if (u.includes("linkedin")) return "linkedin";
+      if (u.includes("reddit")) return "reddit";
+      return "web";
+    };
+
     const allItems = [
       ...posts.map((p) => ({
         id: p.id,
         type: "post" as const,
-        platform: p.platform || "web",
+        platform: inferPlatform(p.url, p.platform),
         keyword: p.keyword.term,
         text: p.text || p.title || "",
         url: p.url,
@@ -413,7 +436,7 @@ competitorsRouter.get("/items", async (req: Request, res: Response, next: NextFu
       ...comments.map((c) => ({
         id: c.id,
         type: "comment" as const,
-        platform: c.post?.platform || "web",
+        platform: inferPlatform(c.url, c.post?.platform),
         keyword: c.keyword.term,
         text: c.text || "",
         url: c.url,
