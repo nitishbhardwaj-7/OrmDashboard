@@ -11,6 +11,7 @@ import { manualScraperRouter } from "./routes/manualScraper";
 import { platformKeywordsRouter } from "./routes/platformKeywords";
 import { googleScraperRouter } from "./routes/googleScraper";
 import { competitorsRouter, syncCompetitorFlags } from "./routes/competitors";
+import { exportRouter } from "./routes/export";
 import { startHourlyScraperCron } from "./services/cronScheduler";
 import { purgeSeedKeyword } from "./services/queryService";
 
@@ -45,6 +46,7 @@ app.get(["/health", "/api/health"], (_req, res) => {
 });
 
 // Dual mount /api and root routes for 100% path compatibility
+app.use(["/api/export", "/export"], exportRouter);
 app.use(["/api/settings", "/settings"], settingsRouter);
 app.use(["/api/google-scraper", "/google-scraper"], googleScraperRouter);
 app.use(["/api/competitor-cards", "/competitor-cards", "/api/competitors", "/competitors"], competitorsRouter);

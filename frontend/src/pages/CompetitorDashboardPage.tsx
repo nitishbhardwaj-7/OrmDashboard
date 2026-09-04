@@ -145,7 +145,26 @@ export function CompetitorDashboardPage() {
           </p>
         </div>
 
-        <div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => api.exportToExcel({ scope: "competitor", platform: platform === "all" ? undefined : platform })}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+            }}
+            title="Download multi-tab Excel report for competitor mentions with clickable links"
+          >
+            📊 Export Excel
+          </button>
+
           <button
             type="button"
             onClick={handleRunAllCards}

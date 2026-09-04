@@ -81,6 +81,16 @@ export function OverviewPage() {
     setSelectedPlatform(platform);
   }
 
+  function handleExportExcel() {
+    const { dateFrom, dateTo } = getDateBounds(dateRange);
+    api.exportToExcel({
+      scope: "brand",
+      platform: selectedPlatform === "all" ? undefined : selectedPlatform,
+      dateFrom,
+      dateTo,
+    });
+  }
+
   async function handleDeleteKeyword(term: string) {
     const kw = keywords.find((k) => k.term === term);
     if (!kw) return;
@@ -105,50 +115,71 @@ export function OverviewPage() {
           </p>
         </div>
 
-        {/* Platform Selector Filter */}
-        <div className="preset-chips">
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
-            className={`preset-chip ${selectedPlatform === "all" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("all")}
+            className="secondary"
+            onClick={handleExportExcel}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            title="Download multi-tab Excel spreadsheet with platform tabs & clickable links"
           >
-            All Platforms
+            📊 Export Excel
           </button>
-          <button
-            type="button"
-            className={`preset-chip ${selectedPlatform === "reddit" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("reddit")}
-          >
-            Reddit
-          </button>
-          <button
-            type="button"
-            className={`preset-chip ${selectedPlatform === "quora" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("quora")}
-          >
-            Quora
-          </button>
-          <button
-            type="button"
-            className={`preset-chip ${selectedPlatform === "teamblind" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("teamblind")}
-          >
-            TeamBlind
-          </button>
-          <button
-            type="button"
-            className={`preset-chip ${selectedPlatform === "trustpilot" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("trustpilot")}
-          >
-            Trustpilot
-          </button>
-          <button
-            type="button"
-            className={`preset-chip ${selectedPlatform === "linkedin" ? "active" : ""}`}
-            onClick={() => handlePlatformTab("linkedin")}
-          >
-            LinkedIn
-          </button>
+
+          {/* Platform Selector Filter */}
+          <div className="preset-chips">
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "all" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("all")}
+            >
+              All Platforms
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "reddit" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("reddit")}
+            >
+              Reddit
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "quora" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("quora")}
+            >
+              Quora
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "teamblind" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("teamblind")}
+            >
+              TeamBlind
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "trustpilot" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("trustpilot")}
+            >
+              Trustpilot
+            </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedPlatform === "linkedin" ? "active" : ""}`}
+              onClick={() => handlePlatformTab("linkedin")}
+            >
+              LinkedIn
+            </button>
+          </div>
         </div>
       </div>
 

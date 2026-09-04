@@ -33,9 +33,39 @@ export function SentimentSectionPage({ title, kind }: { title: string; kind: "ne
 
   return (
     <div>
-      <div className="page-header">
-        <h2>{title}</h2>
-        {data && <span style={{ color: "var(--text-dim)", fontSize: 13 }}>{data.pagination.total} total results</span>}
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2>{title}</h2>
+          {data && <span style={{ color: "var(--text-dim)", fontSize: 13 }}>{data.pagination.total} total results</span>}
+        </div>
+
+        <button
+          type="button"
+          className="secondary"
+          onClick={() =>
+            api.exportToExcel({
+              sentiment: kind.toUpperCase() as "NEGATIVE" | "POSITIVE" | "NEUTRAL",
+              keyword: filters.keyword,
+              platform: filters.platform,
+              search: filters.search ?? filters.author,
+              dateFrom: filters.dateFrom,
+              dateTo: filters.dateTo,
+            })
+          }
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            cursor: "pointer",
+          }}
+          title={`Download multi-tab Excel file for ${title} across all platforms`}
+        >
+          📊 Export Excel
+        </button>
       </div>
 
       <FilterBar

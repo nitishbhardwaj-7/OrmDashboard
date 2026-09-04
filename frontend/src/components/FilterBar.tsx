@@ -91,9 +91,10 @@ export function FilterBar({
 
       <input
         type="text"
-        placeholder="Filter by author"
-        value={value.author ?? ""}
-        onChange={(e) => onChange({ ...value, author: e.target.value || undefined })}
+        placeholder="🔍 Search posts, comments & author..."
+        value={value.search ?? value.author ?? ""}
+        onChange={(e) => onChange({ ...value, search: e.target.value || undefined, author: undefined })}
+        style={{ minWidth: 260 }}
       />
     </div>
   );

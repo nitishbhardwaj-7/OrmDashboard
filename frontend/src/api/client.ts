@@ -207,4 +207,9 @@ export const api = {
   getCompetitorOverview: () => request<CompetitorOverview>("/competitors/overview"),
 
   seedCompetitors: () => request<{ ok: boolean; seededCards: number; taggedPosts: number; taggedComments: number; message: string }>("/competitors/seed", { method: "POST" }),
+
+  exportToExcel: (filters: { scope?: string; platform?: string; keyword?: string; dateFrom?: string; dateTo?: string; sentiment?: string; search?: string; author?: string } = {}) => {
+    const url = `${BASE_URL}/export/excel${toQuery(filters)}`;
+    window.open(url, "_blank");
+  },
 };
