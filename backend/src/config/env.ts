@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import { prisma } from "../lib/prisma";
 
 const envPath = path.resolve(__dirname, "../../.env");
 dotenv.config({ path: envPath });
@@ -48,41 +49,35 @@ export const env = {
   DATABASE_URL: getDatabaseUrl(),
 };
 
-export function refreshEnvFromDisk() {
+export async function refreshEnvFromDisk() {
+  // 1. Read from local .env if available
   try {
     if (fs.existsSync(envPath)) {
       const raw = fs.readFileSync(envPath, "utf-8");
       const parsed = dotenv.parse(raw);
-      if (parsed.GMAIL_USER !== undefined) {
-        env.GMAIL_USER = parsed.GMAIL_USER.trim();
-        process.env.GMAIL_USER = env.GMAIL_USER;
-      }
-      if (parsed.GMAIL_PASS !== undefined) {
-        env.GMAIL_PASS = parsed.GMAIL_PASS.trim();
-        process.env.GMAIL_PASS = env.GMAIL_PASS;
-      }
-      if (parsed.ALERT_EMAIL !== undefined) {
-        env.ALERT_EMAIL = parsed.ALERT_EMAIL.trim();
-        process.env.ALERT_EMAIL = env.ALERT_EMAIL;
-      }
-      if (parsed.RESEND_API_KEY !== undefined) {
-        env.RESEND_API_KEY = parsed.RESEND_API_KEY.trim();
-        process.env.RESEND_API_KEY = env.RESEND_API_KEY;
-      }
-      if (parsed.AI_API_KEY !== undefined) {
-        env.AI_API_KEY = parsed.AI_API_KEY.trim();
-        process.env.AI_API_KEY = env.AI_API_KEY;
-      }
-      if (parsed.AI_MODEL !== undefined) {
-        env.AI_MODEL = parsed.AI_MODEL.trim();
-        process.env.AI_MODEL = env.AI_MODEL;
+      if (parsed.GMAIL_USER !== undefined) { env.GMAIL_USER = parsed.GMAIL_USER.trim(); process.env.GMAIL_USER = env.GMAIL_USER; }
+      if (parsed.GMAIL_PASS !== undefined) { env.GMAIL_PASS = parsed.GMAIL_PASS.trim(); process.env.GMAIL_PASS = env.GMAIL_PASS; }
+      if (parsed.ALERT_EMAIL !== undefined) { env.ALERT_EMAIL = parsed.ALERT_EMAIL.trim(); process.env.ALERT_EMAIL = env.ALERT_EMAIL; }
+      if (parsed.RESEND_API_KEY !== undefined) { env.RESEND_API_KEY = parsed.RESEND_API_KEY.trim(); process.env.RESEND_API_KEY = env.RESEND_API_KEY; }
+      if (parsed.AI_API_KEY !== undefined) { env.AI_API_KEY = parsed.AI_API_KEY.trim(); process.env.AI_API_KEY = env.AI_API_KEY; }
+      if (parsed.AI_MODEL !== undefined) { env.AI_MODEL = parsed.AI_MODEL.trim(); process.env.AI_MODEL = env.AI_MODEL; }
+    }
+  } catch {}
+
+  // 2. Read persistent settings from Neon PostgreSQL database (takes priority in Production / Railway)
+  try {
+    const dbSettings = await prisma.systemSetting.findMany();
+    for (const item of dbSettings) {
+      if (item.key && typeof item.value === "string" && item.value.trim() !== "") {
+        (env as any)[item.key] = item.value.trim();
+        process.env[item.key] = item.value.trim();
       }
     }
   } catch {}
 }
 
-export function getSettings() {
-  refreshEnvFromDisk();
+export async function getSettings() {
+  await refreshEnvFromDisk();
   const serperKey = env.SERPER_API_KEY || env.SEARCHAPI_KEY;
   return {
     apifyApiUrl: env.APIFY_API_URL,
@@ -126,7 +121,24 @@ export interface SettingsUpdatePayload {
   databaseUrl?: string;
 }
 
-export function updateSettings(updates: SettingsUpdatePayload) {
+const PAYLOAD_TO_ENV_KEY_MAP: Record<string, string> = {
+  apifyApiUrl: "APIFY_API_URL",
+  apifyApiKey: "APIFY_API_KEY",
+  aiApiUrl: "AI_API_URL",
+  aiApiKey: "AI_API_KEY",
+  aiModel: "AI_MODEL",
+  resendApiKey: "RESEND_API_KEY",
+  gmailUser: "GMAIL_USER",
+  gmailPass: "GMAIL_PASS",
+  alertEmail: "ALERT_EMAIL",
+  searchApiKey: "SERPER_API_KEY",
+  serperApiKey: "SERPER_API_KEY",
+  mongodbUri: "MONGODB_URI",
+  mongodbDb: "MONGODB_DB",
+  databaseUrl: "DATABASE_URL",
+};
+
+export async function updateSettings(updates: SettingsUpdatePayload) {
   if (updates.apifyApiUrl !== undefined) {
     env.APIFY_API_URL = updates.apifyApiUrl.trim();
     process.env.APIFY_API_URL = env.APIFY_API_URL;
@@ -183,6 +195,28 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     process.env.DATABASE_URL = env.DATABASE_URL;
   }
 
+  // Save each update directly into Neon PostgreSQL database for production persistence across Railway deployments
+  try {
+    for (const [key, val] of Object.entries(updates)) {
+      if (val !== undefined && typeof val === "string") {
+        const envKey = PAYLOAD_TO_ENV_KEY_MAP[key];
+        if (envKey) {
+          await prisma.systemSetting.upsert({
+            where: { key: envKey },
+            update: { value: val.trim() },
+            create: { key: envKey, value: val.trim() },
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Could not save settings to database:", err);
+  }
+  if (updates.databaseUrl !== undefined) {
+    env.DATABASE_URL = updates.databaseUrl.trim();
+    process.env.DATABASE_URL = env.DATABASE_URL;
+  }
+
   // Also auto-extract token if user set APIFY_API_URL with token param and APIFY_API_KEY is empty
   if (env.APIFY_API_URL && !env.APIFY_API_KEY) {
     const extractedToken = env.APIFY_API_URL.match(/[?&]token=([^&]+)/)?.[1];
@@ -209,7 +243,7 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     DATABASE_URL: env.DATABASE_URL,
   });
 
-  return getSettings();
+  return await getSettings();
 }
 
 function persistToEnvFile(map: Record<string, string>) {

@@ -1,11 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import { env } from "../config/env";
 
-// Single shared Prisma client instance for the whole process, explicitly configured with env.DATABASE_URL.
+const DEFAULT_DATABASE_URL =
+  "postgresql://neondb_owner:npg_V5BenYtrj7LE@ep-shy-star-a5pnqlsg-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+
+// Single shared Prisma client instance for the whole process.
 export const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: env.DATABASE_URL,
+      url: process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith("file:") ? process.env.DATABASE_URL : DEFAULT_DATABASE_URL,
     },
   },
 });

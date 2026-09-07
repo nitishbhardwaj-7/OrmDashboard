@@ -150,3 +150,10 @@ model Comment {
   @@index([publishedAt])
   @@index([isCompetitor])
 }
+
+// Persistent key-value settings stored directly in database for production deployment (Railway/Neon)
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
