@@ -114,6 +114,8 @@ export interface DashboardSettings {
   aiApiKey: string;
   aiModel: string;
   resendApiKey?: string;
+  gmailUser?: string;
+  gmailPass?: string;
   alertEmail?: string;
   searchApiKey?: string;
   mongodbUri?: string;
@@ -122,6 +124,7 @@ export interface DashboardSettings {
   apifyConfigured?: boolean;
   aiConfigured?: boolean;
   resendConfigured?: boolean;
+  gmailConfigured?: boolean;
   searchApiConfigured?: boolean;
   databaseConfigured?: boolean;
 }

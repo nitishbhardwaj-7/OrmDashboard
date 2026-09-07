@@ -1,4 +1,5 @@
-import { env } from "../config/env";
+import { env, refreshEnvFromDisk } from "../config/env";
+import nodemailer from "nodemailer";
 
 export interface NegativeMentionPayload {
   type: "post" | "comment";
@@ -13,9 +14,13 @@ export interface NegativeMentionPayload {
 }
 
 export async function sendNegativeMentionAlert(item: NegativeMentionPayload): Promise<boolean> {
-  const apiKey = env.RESEND_API_KEY?.trim() || "";
-  if (!apiKey) {
-    console.warn("Skipping email alert: RESEND_API_KEY is not configured.");
+  refreshEnvFromDisk();
+  const gmailUser = env.GMAIL_USER?.trim() || "";
+  const gmailPass = env.GMAIL_PASS?.trim() || "";
+  const resendApiKey = env.RESEND_API_KEY?.trim() || "";
+
+  if (!gmailUser && !gmailPass && !resendApiKey) {
+    console.warn("Skipping email alert: Neither Gmail SMTP nor Resend API is configured.");
     return false;
   }
 
@@ -101,34 +106,72 @@ ${escapeHtml(item.text || "No text content available.")}
     </div>
   `;
 
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "ORM Alert Monitor <onboarding@resend.dev>",
-        to: finalRecipients,
+  // 1) Use Gmail SMTP if configured
+  if (gmailUser && gmailPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: gmailUser,
+          pass: gmailPass,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `ORM Alert Monitor <${gmailUser}>`,
+        to: finalRecipients.join(", "),
         subject,
         html,
-      }),
-    });
+      });
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error(`Resend email alert failed (${response.status}): ${errText}`);
+      console.log(`✓ Gmail SMTP alert delivered to [${finalRecipients.join(", ")}]! Message ID: ${info.messageId}`);
+      return true;
+    } catch (err: any) {
+      console.error("Gmail SMTP alert failed:", err?.message || err);
+      // Fall through to Resend if configured
+    }
+  }
+
+  // 2) Fallback to Resend API
+  if (resendApiKey) {
+    try {
+      const results = await Promise.allSettled(
+        finalRecipients.map(async (recipient) => {
+          const response = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "ORM Alert Monitor <onboarding@resend.dev>",
+              to: [recipient],
+              subject,
+              html,
+            }),
+          });
+
+          if (!response.ok) {
+            const errText = await response.text().catch(() => "");
+            console.warn(`Resend email alert to ${recipient} failed (${response.status}): ${errText}`);
+            return false;
+          }
+
+          const data: any = await response.json().catch(() => null);
+          console.log(`✓ Resend email alert delivered to ${recipient}! ID: ${data?.id}`);
+          return true;
+        })
+      );
+
+      const sentCount = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
+      return sentCount > 0;
+    } catch (err: any) {
+      console.error("Error sending Resend email alert:", err?.message || err);
       return false;
     }
-
-    const data: any = await response.json().catch(() => null);
-    console.log(`✓ Resend email alert delivered successfully! ID: ${data?.id}`);
-    return true;
-  } catch (err: any) {
-    console.error("Error sending Resend email alert:", err?.message || err);
-    return false;
   }
+
+  return false;
 }
 
 function escapeHtml(str: string): string {

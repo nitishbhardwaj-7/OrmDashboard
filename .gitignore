@@ -11,6 +11,8 @@ backend/.env
 # SQLite database + Prisma migration lock working files
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+# Database backups
+backups/
 *.db
 
 # editor/OS

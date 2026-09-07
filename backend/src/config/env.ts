@@ -37,6 +37,8 @@ export const env = {
   AI_CONCURRENCY: Number(optional("AI_CONCURRENCY", "3")),
 
   RESEND_API_KEY: optional("RESEND_API_KEY"),
+  GMAIL_USER: optional("GMAIL_USER"),
+  GMAIL_PASS: optional("GMAIL_PASS"),
   ALERT_EMAIL: optional("ALERT_EMAIL", "delivered@resend.dev"),
 
   SERPER_API_KEY: optional("SERPER_API_KEY") || optional("SEARCHAPI_KEY"),
@@ -46,7 +48,41 @@ export const env = {
   DATABASE_URL: getDatabaseUrl(),
 };
 
+export function refreshEnvFromDisk() {
+  try {
+    if (fs.existsSync(envPath)) {
+      const raw = fs.readFileSync(envPath, "utf-8");
+      const parsed = dotenv.parse(raw);
+      if (parsed.GMAIL_USER !== undefined) {
+        env.GMAIL_USER = parsed.GMAIL_USER.trim();
+        process.env.GMAIL_USER = env.GMAIL_USER;
+      }
+      if (parsed.GMAIL_PASS !== undefined) {
+        env.GMAIL_PASS = parsed.GMAIL_PASS.trim();
+        process.env.GMAIL_PASS = env.GMAIL_PASS;
+      }
+      if (parsed.ALERT_EMAIL !== undefined) {
+        env.ALERT_EMAIL = parsed.ALERT_EMAIL.trim();
+        process.env.ALERT_EMAIL = env.ALERT_EMAIL;
+      }
+      if (parsed.RESEND_API_KEY !== undefined) {
+        env.RESEND_API_KEY = parsed.RESEND_API_KEY.trim();
+        process.env.RESEND_API_KEY = env.RESEND_API_KEY;
+      }
+      if (parsed.AI_API_KEY !== undefined) {
+        env.AI_API_KEY = parsed.AI_API_KEY.trim();
+        process.env.AI_API_KEY = env.AI_API_KEY;
+      }
+      if (parsed.AI_MODEL !== undefined) {
+        env.AI_MODEL = parsed.AI_MODEL.trim();
+        process.env.AI_MODEL = env.AI_MODEL;
+      }
+    }
+  } catch {}
+}
+
 export function getSettings() {
+  refreshEnvFromDisk();
   const serperKey = env.SERPER_API_KEY || env.SEARCHAPI_KEY;
   return {
     apifyApiUrl: env.APIFY_API_URL,
@@ -55,6 +91,8 @@ export function getSettings() {
     aiApiKey: env.AI_API_KEY,
     aiModel: env.AI_MODEL,
     resendApiKey: env.RESEND_API_KEY,
+    gmailUser: env.GMAIL_USER,
+    gmailPass: env.GMAIL_PASS,
     alertEmail: env.ALERT_EMAIL,
     searchApiKey: serperKey,
     serperApiKey: serperKey,
@@ -64,6 +102,7 @@ export function getSettings() {
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
     resendConfigured: Boolean(env.RESEND_API_KEY),
+    gmailConfigured: Boolean(env.GMAIL_USER && env.GMAIL_PASS),
     searchApiConfigured: Boolean(serperKey),
     serperApiConfigured: Boolean(serperKey),
     databaseConfigured: Boolean(env.DATABASE_URL),
@@ -77,6 +116,8 @@ export interface SettingsUpdatePayload {
   aiApiKey?: string;
   aiModel?: string;
   resendApiKey?: string;
+  gmailUser?: string;
+  gmailPass?: string;
   alertEmail?: string;
   searchApiKey?: string;
   serperApiKey?: string;
@@ -109,6 +150,14 @@ export function updateSettings(updates: SettingsUpdatePayload) {
   if (updates.resendApiKey !== undefined) {
     env.RESEND_API_KEY = updates.resendApiKey.trim();
     process.env.RESEND_API_KEY = env.RESEND_API_KEY;
+  }
+  if (updates.gmailUser !== undefined) {
+    env.GMAIL_USER = updates.gmailUser.trim();
+    process.env.GMAIL_USER = env.GMAIL_USER;
+  }
+  if (updates.gmailPass !== undefined) {
+    env.GMAIL_PASS = updates.gmailPass.trim();
+    process.env.GMAIL_PASS = env.GMAIL_PASS;
   }
   if (updates.alertEmail !== undefined) {
     env.ALERT_EMAIL = updates.alertEmail.trim();
@@ -150,6 +199,8 @@ export function updateSettings(updates: SettingsUpdatePayload) {
     AI_API_KEY: env.AI_API_KEY,
     AI_MODEL: env.AI_MODEL,
     RESEND_API_KEY: env.RESEND_API_KEY,
+    GMAIL_USER: env.GMAIL_USER,
+    GMAIL_PASS: env.GMAIL_PASS,
     ALERT_EMAIL: env.ALERT_EMAIL,
     SERPER_API_KEY: env.SERPER_API_KEY,
     SEARCHAPI_KEY: env.SEARCHAPI_KEY,

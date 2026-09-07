@@ -17,6 +17,7 @@ export function SettingsPage() {
   const [resettingDb, setResettingDb] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
+  const [showGmailPass, setShowGmailPass] = useState(false);
   const [showSearchApiKey, setShowSearchApiKey] = useState(false);
   const [showMongodbUri, setShowMongodbUri] = useState(false);
   const [showDatabaseUrl, setShowDatabaseUrl] = useState(false);
@@ -167,17 +168,55 @@ export function SettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {/* Resend Email Alerts Card */}
+        {/* Email Alerts Card (Gmail SMTP / Resend) */}
         <div className="card settings-section" style={{ border: "1px solid rgba(220, 38, 38, 0.4)", background: "rgba(220, 38, 38, 0.03)" }}>
           <div style={{ marginBottom: 16 }}>
             <h3 style={{ margin: 0, fontSize: 16, color: "#f87171" }}>🚨 Instant Negative Alert Email Notifications</h3>
             <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Sends an immediate email notification via Resend whenever a NEW negative post or comment is discovered.
+              Sends immediate email notifications whenever a NEW negative post or comment is discovered via Gmail SMTP or Resend.
             </span>
           </div>
 
+          {/* Gmail SMTP Settings */}
+          <div style={{ padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 16, border: "1px solid rgba(255,255,255,0.08)" }}>
+            <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#e2e8f0" }}>📧 Gmail SMTP (Recommended for sending to any recipient)</h4>
+            <div className="settings-form-group">
+              <label htmlFor="gmailUser">Gmail Sender Address</label>
+              <input
+                id="gmailUser"
+                type="email"
+                value={settings.gmailUser ?? ""}
+                onChange={(e) => setSettings({ ...settings, gmailUser: e.target.value })}
+                placeholder="your.email@gmail.com"
+              />
+              <span className="field-hint">Your Gmail address used to dispatch alert emails.</span>
+            </div>
+
+            <div className="settings-form-group" style={{ marginTop: 12 }}>
+              <label htmlFor="gmailPass">Gmail App Password</label>
+              <div className="input-with-button">
+                <input
+                  id="gmailPass"
+                  type={showGmailPass ? "text" : "password"}
+                  value={settings.gmailPass ?? ""}
+                  onChange={(e) => setSettings({ ...settings, gmailPass: e.target.value })}
+                  placeholder="16-character Google App Password (e.g. abcd efgh ijkl mnop)"
+                />
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setShowGmailPass(!showGmailPass)}
+                  style={{ minWidth: 64 }}
+                >
+                  {showGmailPass ? "Hide" : "Show"}
+                </button>
+              </div>
+              <span className="field-hint">Generate a free 16-character App Password at myaccount.google.com/apppasswords.</span>
+            </div>
+          </div>
+
           <div className="settings-form-group">
-            <label htmlFor="resendApiKey">Resend API Key</label>
+            <label htmlFor="resendApiKey">Resend API Key (Fallback)</label>
             <div className="input-with-button">
               <input
                 id="resendApiKey"
@@ -195,7 +234,7 @@ export function SettingsPage() {
                 {showResendKey ? "Hide" : "Show"}
               </button>
             </div>
-            <span className="field-hint">Your Resend API token used for automated email alerts.</span>
+            <span className="field-hint">Used as fallback if Gmail SMTP is not configured.</span>
           </div>
 
           <div className="settings-form-group" style={{ marginTop: 16 }}>
@@ -205,7 +244,7 @@ export function SettingsPage() {
               type="text"
               value={settings.alertEmail ?? "delivered@resend.dev"}
               onChange={(e) => setSettings({ ...settings, alertEmail: e.target.value })}
-              placeholder="admin@example.com, alerts@example.com"
+              placeholder="nitisshhhh@gmail.com, itsnitish9319192299@gmail.com"
             />
             <span className="field-hint">
               Target email address(es) where negative mention alert reports will be delivered. Separate multiple addresses with commas.
