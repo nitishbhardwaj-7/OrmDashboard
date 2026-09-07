@@ -33,7 +33,7 @@ export const env = {
 
   AI_API_URL: optional("AI_API_URL", "https://api.mistral.ai/v1/chat/completions"),
   AI_API_KEY: optional("AI_API_KEY") || optional("MISTRAL_API_KEY"),
-  AI_MODEL: optional("AI_MODEL", "mistral-small-latest"),
+  AI_MODEL: optional("AI_MODEL", "open-mistral-7b"),
   AI_CONCURRENCY: Number(optional("AI_CONCURRENCY", "3")),
 
   RESEND_API_KEY: optional("RESEND_API_KEY"),
