@@ -364,8 +364,8 @@ export function SettingsPage() {
               <input
                 id="searchApiKey"
                 type={showSearchApiKey ? "text" : "password"}
-                value={settings.searchApiKey ?? ""}
-                onChange={(e) => setSettings({ ...settings, searchApiKey: e.target.value })}
+                value={settings.serperApiKey ?? settings.searchApiKey ?? ""}
+                onChange={(e) => setSettings({ ...settings, searchApiKey: e.target.value, serperApiKey: e.target.value })}
                 placeholder="Enter Serper.dev API Key"
               />
               <button

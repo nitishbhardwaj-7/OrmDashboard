@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { execSync } from "child_process";
-import { env } from "./config/env";
+import { env, refreshEnvFromDisk } from "./config/env";
 import { keywordsRouter } from "./routes/keywords";
 import { itemsRouter } from "./routes/items";
 import { chartsRouter } from "./routes/charts";
@@ -21,6 +21,7 @@ const app = express();
 try {
   console.log("Ensuring Prisma database schema is in sync...");
   execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+  refreshEnvFromDisk().catch(() => {});
   purgeSeedKeyword().catch(() => {});
   syncCompetitorFlags().catch(() => {});
 } catch (err: any) {

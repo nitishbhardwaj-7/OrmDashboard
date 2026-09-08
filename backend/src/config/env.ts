@@ -59,6 +59,12 @@ export async function refreshEnvFromDisk() {
     if (fs.existsSync(envPath)) {
       const raw = fs.readFileSync(envPath, "utf-8");
       const parsed = dotenv.parse(raw);
+      if (parsed.APIFY_API_URL !== undefined) { env.APIFY_API_URL = parsed.APIFY_API_URL.trim(); process.env.APIFY_API_URL = env.APIFY_API_URL; }
+      if (parsed.APIFY_API_KEY !== undefined) { env.APIFY_API_KEY = parsed.APIFY_API_KEY.trim(); process.env.APIFY_API_KEY = env.APIFY_API_KEY; }
+      if (parsed.AI_API_URL !== undefined) { env.AI_API_URL = parsed.AI_API_URL.trim(); process.env.AI_API_URL = env.AI_API_URL; }
+      if (parsed.AI_API_KEY !== undefined) { env.AI_API_KEY = parsed.AI_API_KEY.trim(); process.env.AI_API_KEY = env.AI_API_KEY; }
+      if (parsed.MISTRAL_API_KEY !== undefined && !parsed.AI_API_KEY) { env.AI_API_KEY = parsed.MISTRAL_API_KEY.trim(); process.env.AI_API_KEY = env.AI_API_KEY; }
+      if (parsed.AI_MODEL !== undefined) { env.AI_MODEL = parsed.AI_MODEL.trim(); process.env.AI_MODEL = env.AI_MODEL; }
       if (parsed.SMTP_HOST !== undefined) { env.SMTP_HOST = parsed.SMTP_HOST.trim(); process.env.SMTP_HOST = env.SMTP_HOST; }
       if (parsed.SMTP_PORT !== undefined) { env.SMTP_PORT = parsed.SMTP_PORT.trim(); process.env.SMTP_PORT = env.SMTP_PORT; }
       if (parsed.SMTP_USER !== undefined) { env.SMTP_USER = parsed.SMTP_USER.trim(); env.GMAIL_USER = env.SMTP_USER; process.env.SMTP_USER = env.SMTP_USER; process.env.GMAIL_USER = env.SMTP_USER; }
@@ -67,8 +73,20 @@ export async function refreshEnvFromDisk() {
       if (parsed.GMAIL_PASS !== undefined) { env.GMAIL_PASS = parsed.GMAIL_PASS.trim(); env.SMTP_PASS = env.GMAIL_PASS; process.env.GMAIL_PASS = env.GMAIL_PASS; process.env.SMTP_PASS = env.GMAIL_PASS; }
       if (parsed.MAIL_FROM !== undefined) { env.MAIL_FROM = parsed.MAIL_FROM.trim(); process.env.MAIL_FROM = env.MAIL_FROM; }
       if (parsed.ALERT_EMAIL !== undefined) { env.ALERT_EMAIL = parsed.ALERT_EMAIL.trim(); process.env.ALERT_EMAIL = env.ALERT_EMAIL; }
-      if (parsed.AI_API_KEY !== undefined) { env.AI_API_KEY = parsed.AI_API_KEY.trim(); process.env.AI_API_KEY = env.AI_API_KEY; }
-      if (parsed.AI_MODEL !== undefined) { env.AI_MODEL = parsed.AI_MODEL.trim(); process.env.AI_MODEL = env.AI_MODEL; }
+      if (parsed.SERPER_API_KEY !== undefined) {
+        env.SERPER_API_KEY = parsed.SERPER_API_KEY.trim();
+        env.SEARCHAPI_KEY = env.SERPER_API_KEY;
+        process.env.SERPER_API_KEY = env.SERPER_API_KEY;
+        process.env.SEARCHAPI_KEY = env.SERPER_API_KEY;
+      } else if (parsed.SEARCHAPI_KEY !== undefined) {
+        env.SEARCHAPI_KEY = parsed.SEARCHAPI_KEY.trim();
+        env.SERPER_API_KEY = env.SEARCHAPI_KEY;
+        process.env.SEARCHAPI_KEY = env.SEARCHAPI_KEY;
+        process.env.SERPER_API_KEY = env.SEARCHAPI_KEY;
+      }
+      if (parsed.MONGODB_URI !== undefined) { env.MONGODB_URI = parsed.MONGODB_URI.trim(); process.env.MONGODB_URI = env.MONGODB_URI; }
+      if (parsed.MONGODB_DB !== undefined) { env.MONGODB_DB = parsed.MONGODB_DB.trim(); process.env.MONGODB_DB = env.MONGODB_DB; }
+      if (parsed.DATABASE_URL !== undefined) { env.DATABASE_URL = parsed.DATABASE_URL.trim(); process.env.DATABASE_URL = env.DATABASE_URL; }
     }
   } catch {}
 
@@ -138,27 +156,6 @@ export interface SettingsUpdatePayload {
   mongodbDb?: string;
   databaseUrl?: string;
 }
-
-const PAYLOAD_TO_ENV_KEY_MAP: Record<string, string> = {
-  apifyApiUrl: "APIFY_API_URL",
-  apifyApiKey: "APIFY_API_KEY",
-  aiApiUrl: "AI_API_URL",
-  aiApiKey: "AI_API_KEY",
-  aiModel: "AI_MODEL",
-  smtpHost: "SMTP_HOST",
-  smtpPort: "SMTP_PORT",
-  smtpUser: "SMTP_USER",
-  smtpPass: "SMTP_PASS",
-  gmailUser: "GMAIL_USER",
-  gmailPass: "GMAIL_PASS",
-  mailFrom: "MAIL_FROM",
-  alertEmail: "ALERT_EMAIL",
-  searchApiKey: "SERPER_API_KEY",
-  serperApiKey: "SERPER_API_KEY",
-  mongodbUri: "MONGODB_URI",
-  mongodbDb: "MONGODB_DB",
-  databaseUrl: "DATABASE_URL",
-};
 
 export async function updateSettings(updates: SettingsUpdatePayload) {
   if (updates.apifyApiUrl !== undefined) {
@@ -231,18 +228,36 @@ export async function updateSettings(updates: SettingsUpdatePayload) {
     process.env.DATABASE_URL = env.DATABASE_URL;
   }
 
-  // Save each update directly into Neon PostgreSQL database for production persistence across Railway deployments
+  // Save resolved settings directly into Neon PostgreSQL database for production persistence across Railway deployments
   try {
-    for (const [key, val] of Object.entries(updates)) {
-      if (val !== undefined && typeof val === "string") {
-        const envKey = PAYLOAD_TO_ENV_KEY_MAP[key];
-        if (envKey) {
-          await prisma.systemSetting.upsert({
-            where: { key: envKey },
-            update: { value: val.trim() },
-            create: { key: envKey, value: val.trim() },
-          });
-        }
+    const finalMap: Record<string, string> = {
+      APIFY_API_URL: env.APIFY_API_URL,
+      APIFY_API_KEY: env.APIFY_API_KEY,
+      AI_API_URL: env.AI_API_URL,
+      AI_API_KEY: env.AI_API_KEY,
+      AI_MODEL: env.AI_MODEL,
+      SMTP_HOST: env.SMTP_HOST,
+      SMTP_PORT: env.SMTP_PORT,
+      SMTP_USER: env.SMTP_USER,
+      SMTP_PASS: env.SMTP_PASS,
+      GMAIL_USER: env.GMAIL_USER,
+      GMAIL_PASS: env.GMAIL_PASS,
+      MAIL_FROM: env.MAIL_FROM,
+      ALERT_EMAIL: env.ALERT_EMAIL,
+      SERPER_API_KEY: env.SERPER_API_KEY,
+      SEARCHAPI_KEY: env.SEARCHAPI_KEY,
+      MONGODB_URI: env.MONGODB_URI,
+      MONGODB_DB: env.MONGODB_DB,
+      DATABASE_URL: env.DATABASE_URL,
+    };
+
+    for (const [envKey, val] of Object.entries(finalMap)) {
+      if (val !== undefined && val !== null) {
+        await prisma.systemSetting.upsert({
+          where: { key: envKey },
+          update: { value: val.trim() },
+          create: { key: envKey, value: val.trim() },
+        });
       }
     }
   } catch (err) {
