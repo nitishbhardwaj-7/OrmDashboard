@@ -128,6 +128,18 @@ export const api = {
   retryComment: (id: string) => request<{ id: string; analyzed: boolean }>(`/retry/comment/${id}`, { method: "POST" }),
   retryAllFailed: () =>
     request<{ ok: boolean; total: number; analyzed: number; failed: number }>("/retry/all", { method: "POST" }),
+  clearAllFailed: () =>
+    request<{ ok: boolean; deletedPosts: number; deletedComments: number; totalDeleted: number }>("/retry/all", {
+      method: "DELETE",
+    }),
+  deletePost: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/items/post/${id}`, { method: "DELETE" }),
+  deleteComment: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/items/comment/${id}`, { method: "DELETE" }),
+  deleteFailedPost: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/items/post/${id}`, { method: "DELETE" }),
+  deleteFailedComment: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/items/comment/${id}`, { method: "DELETE" }),
 
   runManualScrape: (payload: ManualScrapePayload) =>
     request<ManualScrapeResult>("/manual-scraper/scrape", {

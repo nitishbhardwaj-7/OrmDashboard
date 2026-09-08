@@ -33,6 +33,7 @@ export function ItemList({
 
 function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void }) {
   const [retrying, setRetrying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function retry() {
     setRetrying(true);
@@ -47,6 +48,22 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
 
   const isTrustpilot = item.platform === "trustpilot" || item.url?.includes("trustpilot");
   const displayType = isTrustpilot ? "REVIEW" : item.type;
+
+  async function handleDelete() {
+    const typeLabel = displayType.toLowerCase();
+    if (!window.confirm(`Are you sure you want to permanently delete this ${typeLabel}?`)) return;
+    setDeleting(true);
+    try {
+      if (item.type === "post") await api.deletePost(item.id);
+      else await api.deleteComment(item.id);
+      onRetried?.();
+    } catch (err: any) {
+      alert(`Failed to delete item: ${err.message || String(err)}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const sourceUrl = item.url ?? (item.type === "comment" ? item.post?.url : null) ?? null;
 
   return (
@@ -67,17 +84,33 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
           <ConfidenceBar confidence={item.confidence} />
           {item.status === "FAILED" && <span className="badge FAILED">FAILED: {item.processingError}</span>}
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {sourceUrl && (
             <a href={sourceUrl} target="_blank" rel="noreferrer">
               View {isTrustpilot ? "Review" : item.type === "post" ? "Post" : "Comment"} ↗
             </a>
           )}
           {item.status === "FAILED" && (
-            <button className="secondary" onClick={retry} disabled={retrying}>
+            <button className="secondary" onClick={retry} disabled={retrying || deleting}>
               {retrying ? <span className="spinner" /> : "Retry analysis"}
             </button>
           )}
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleDelete}
+            disabled={retrying || deleting}
+            title={`Delete this ${displayType.toLowerCase()}`}
+            style={{
+              color: "#f87171",
+              borderColor: "rgba(239, 68, 68, 0.3)",
+              background: "rgba(239, 68, 68, 0.05)",
+              padding: "4px 10px",
+              fontSize: 12,
+            }}
+          >
+            {deleting ? <span className="spinner" /> : "🗑 Delete"}
+          </button>
         </div>
       </div>
     </div>

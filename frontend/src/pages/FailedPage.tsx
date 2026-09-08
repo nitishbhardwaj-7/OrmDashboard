@@ -6,6 +6,7 @@ export function FailedPage() {
   const [data, setData] = useState<{ posts: any[]; comments: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [retryingAll, setRetryingAll] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   function load() {
@@ -32,6 +33,25 @@ export function FailedPage() {
     }
   }
 
+  async function handleClearAll() {
+    if (!data) return;
+    const totalCount = data.posts.length + data.comments.length;
+    if (!window.confirm(`Are you sure you want to permanently delete all ${totalCount} failed items? This cannot be undone.`)) {
+      return;
+    }
+    setClearingAll(true);
+    setStatusMessage("Clearing all failed items...");
+    try {
+      const res = await api.clearAllFailed();
+      setStatusMessage(`✓ Permanently deleted ${res.totalDeleted} failed items (${res.deletedPosts} posts, ${res.deletedComments} comments).`);
+      load();
+    } catch (err: any) {
+      setStatusMessage(`⚠ Error clearing failed items: ${err.message || String(err)}`);
+    } finally {
+      setClearingAll(false);
+    }
+  }
+
   const items = data
     ? [
         ...data.posts.map((p) => ({ ...p, type: "post" as const, keyword: p.keyword?.term ?? p.keyword })),
@@ -50,21 +70,40 @@ export function FailedPage() {
         </div>
 
         {items.length > 0 && (
-          <button
-            type="button"
-            onClick={handleRetryAll}
-            disabled={retryingAll}
-            style={{ height: 38, padding: "0 18px", whiteSpace: "nowrap" }}
-          >
-            {retryingAll ? (
-              <>
-                <span className="spinner" style={{ marginRight: 8 }} />
-                Retrying {items.length} Items…
-              </>
-            ) : (
-              `🚀 Retry All (${items.length} Items)`
-            )}
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={handleClearAll}
+              disabled={clearingAll || retryingAll}
+              style={{ height: 38, padding: "0 18px", whiteSpace: "nowrap", color: "#f87171", borderColor: "rgba(239, 68, 68, 0.4)" }}
+            >
+              {clearingAll ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 8 }} />
+                  Clearing…
+                </>
+              ) : (
+                `🗑 Clear All (${items.length})`
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRetryAll}
+              disabled={retryingAll || clearingAll}
+              style={{ height: 38, padding: "0 18px", whiteSpace: "nowrap" }}
+            >
+              {retryingAll ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 8 }} />
+                  Retrying {items.length} Items…
+                </>
+              ) : (
+                `🚀 Retry All (${items.length} Items)`
+              )}
+            </button>
+          </div>
         )}
       </div>
 

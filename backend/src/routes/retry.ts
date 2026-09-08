@@ -55,8 +55,83 @@ retryRouter.post("/comment/:id", async (req, res) => {
   }
 });
 
+// DELETE /api/retry/all — permanently delete all failed posts & comments.
+retryRouter.delete("/all", async (_req, res) => {
+  try {
+    const deletedComments = await prisma.comment.deleteMany({
+      where: {
+        OR: [
+          { status: "FAILED" },
+          { post: { status: "FAILED" } },
+        ],
+      },
+    });
+
+    const deletedPosts = await prisma.post.deleteMany({
+      where: { status: "FAILED" },
+    });
+
+    res.json({
+      ok: true,
+      deletedPosts: deletedPosts.count,
+      deletedComments: deletedComments.count,
+      totalDeleted: deletedPosts.count + deletedComments.count,
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+retryRouter.delete("/clear-all", async (_req, res) => {
+  try {
+    const deletedComments = await prisma.comment.deleteMany({
+      where: {
+        OR: [
+          { status: "FAILED" },
+          { post: { status: "FAILED" } },
+        ],
+      },
+    });
+
+    const deletedPosts = await prisma.post.deleteMany({
+      where: { status: "FAILED" },
+    });
+
+    res.json({
+      ok: true,
+      deletedPosts: deletedPosts.count,
+      deletedComments: deletedComments.count,
+      totalDeleted: deletedPosts.count + deletedComments.count,
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// DELETE /api/retry/post/:id — delete a failed post.
+retryRouter.delete("/post/:id", async (req, res) => {
+  try {
+    await prisma.comment.deleteMany({ where: { postId: req.params.id } });
+    await prisma.post.delete({ where: { id: req.params.id } });
+    res.json({ ok: true, id: req.params.id });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// DELETE /api/retry/comment/:id — delete a failed comment.
+retryRouter.delete("/comment/:id", async (req, res) => {
+  try {
+    await prisma.comment.delete({ where: { id: req.params.id } });
+    res.json({ ok: true, id: req.params.id });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
 function handleError(err: unknown, res: any) {
   if (err instanceof ConfigError) return res.status(503).json({ error: err.message });
   console.error(err);
   res.status(500).json({ error: "Unexpected server error while retrying analysis." });
 }
+

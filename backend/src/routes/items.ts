@@ -80,3 +80,31 @@ itemsRouter.get("/search", async (req, res) => {
   const result = await globalSearch(q);
   res.json(result);
 });
+
+// DELETE /api/items/post/:id or /api/post/:id — delete a specific post & its comments
+itemsRouter.delete(["/items/post/:id", "/post/:id"], async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { prisma } = await import("../lib/prisma");
+    await prisma.comment.deleteMany({ where: { postId: id } });
+    await prisma.post.delete({ where: { id } });
+    res.json({ ok: true, message: "Post deleted successfully", id });
+  } catch (err: any) {
+    console.error("Error deleting post:", err);
+    res.status(500).json({ error: err?.message || "Failed to delete post" });
+  }
+});
+
+// DELETE /api/items/comment/:id or /api/comment/:id — delete a specific comment
+itemsRouter.delete(["/items/comment/:id", "/comment/:id"], async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { prisma } = await import("../lib/prisma");
+    await prisma.comment.delete({ where: { id } });
+    res.json({ ok: true, message: "Comment deleted successfully", id });
+  } catch (err: any) {
+    console.error("Error deleting comment:", err);
+    res.status(500).json({ error: err?.message || "Failed to delete comment" });
+  }
+});
+

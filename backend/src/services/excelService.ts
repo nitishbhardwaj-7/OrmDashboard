@@ -236,11 +236,10 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
     { width: 16 },
     { width: 16 },
     { width: 16 },
-    { width: 16 },
   ];
 
   // Header Title Banner
-  sheet.mergeCells("B2:I3");
+  sheet.mergeCells("B2:H3");
   const titleCell = sheet.getCell("B2");
   let reportTitle = "📊 Online Reputation Monitoring (ORM) Export Report";
   if (options.sentiment === "NEGATIVE") reportTitle = "📊 Negative Mentions ORM Export Report";
@@ -253,7 +252,7 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
   titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
   // Filter Subtitle Info
-  sheet.mergeCells("B4:I4");
+  sheet.mergeCells("B4:H4");
   const subCell = sheet.getCell("B4");
   const scopeText = (options.scope ?? "all").toUpperCase();
   subCell.value = `Scope: ${scopeText} | Generated At: ${new Date().toLocaleString()} | Total Items: ${items.length}`;
@@ -265,17 +264,14 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
   const posCount = items.filter((i) => i.sentiment === "POSITIVE").length;
   const negCount = items.filter((i) => i.sentiment === "NEGATIVE").length;
   const neuCount = items.filter((i) => i.sentiment === "NEUTRAL").length;
-  const totalAnalyzed = posCount + negCount + neuCount;
-
-  const pct = (val: number) => (totalAnalyzed > 0 ? `${((val / totalAnalyzed) * 100).toFixed(1)}%` : "0%");
 
   // Summary Metrics Table Header
   const summaryHeaderRow = sheet.getRow(6);
-  summaryHeaderRow.values = ["", "Metric", "Total Mentions", "Posts", "Comments", "Positive", "Negative", "Neutral", "Positive %"];
+  summaryHeaderRow.values = ["", "Metric", "Total Mentions", "Posts", "Comments", "Positive", "Negative", "Neutral"];
   formatHeaderRow(summaryHeaderRow, "FF1E293B");
 
   const rowData = [
-    ["", "Overall Mentions", items.length, totalPosts, totalComments, posCount, negCount, neuCount, pct(posCount)],
+    ["", "Overall Mentions", items.length, totalPosts, totalComments, posCount, negCount, neuCount],
   ];
 
   rowData.forEach((r, idx) => {
@@ -296,7 +292,7 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
   sheet.getCell("B10").font = { name: "Segoe UI", size: 13, bold: true, color: { argb: "FF0F172A" } };
 
   const platHeaderRow = sheet.getRow(12);
-  platHeaderRow.values = ["", "Platform", "Total Mentions", "Posts", "Comments", "Positive", "Negative", "Neutral", "Positive %"];
+  platHeaderRow.values = ["", "Platform", "Total Mentions", "Posts", "Comments", "Positive", "Negative", "Neutral"];
   formatHeaderRow(platHeaderRow, "FF334155");
 
   const PLATFORMS = ["Reddit", "Quora", "TeamBlind", "Trustpilot", "LinkedIn", "Web & Google"];
@@ -307,12 +303,10 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
     const pPos = pItems.filter((i) => i.sentiment === "POSITIVE").length;
     const pNeg = pItems.filter((i) => i.sentiment === "NEGATIVE").length;
     const pNeu = pItems.filter((i) => i.sentiment === "NEUTRAL").length;
-    const pTotAna = pPos + pNeg + pNeu;
-    const pPct = pTotAna > 0 ? `${((pPos / pTotAna) * 100).toFixed(1)}%` : "0%";
 
     const rowIndex = 13 + idx;
     const row = sheet.getRow(rowIndex);
-    row.values = ["", plat, pItems.length, pPosts, pComments, pPos, pNeg, pNeu, pPct];
+    row.values = ["", plat, pItems.length, pPosts, pComments, pPos, pNeg, pNeu];
     row.font = { name: "Segoe UI", size: 10 };
     row.alignment = { vertical: "middle", horizontal: "center" };
     sheet.getCell(`B${rowIndex}`).alignment = { vertical: "middle", horizontal: "left" };
@@ -320,7 +314,7 @@ function buildSummarySheet(workbook: ExcelJS.Workbook, items: ExportItem[], opti
 
     // Soft zebra striping
     if (idx % 2 === 1) {
-      for (let c = 2; c <= 9; c++) {
+      for (let c = 2; c <= 8; c++) {
         sheet.getCell(rowIndex, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
       }
     }

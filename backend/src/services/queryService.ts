@@ -16,59 +16,118 @@ export interface ItemFilters {
 }
 
 function postWhere(f: ItemFilters): Prisma.PostWhereInput {
-  const where: Prisma.PostWhereInput = { isCompetitor: false };
-  if (f.keyword) where.keyword = { term: f.keyword };
-  if (f.sentiment) where.sentiment = f.sentiment;
-  if (f.author) where.author = { contains: f.author };
+  const conditions: Prisma.PostWhereInput[] = [
+    { isCompetitor: false },
+  ];
+
+  if (f.keyword && f.keyword.trim()) {
+    const kw = f.keyword.trim();
+    conditions.push({
+      keyword: {
+        term: {
+          equals: kw,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
+
+  if (f.sentiment) {
+    conditions.push({ sentiment: f.sentiment });
+  }
+
   if (f.platform && f.platform !== "all") {
-    where.OR = [
-      { platform: f.platform },
-      { url: { contains: f.platform } },
-    ];
+    const p = f.platform.toLowerCase().trim();
+    conditions.push({
+      OR: [
+        { platform: { equals: p, mode: "insensitive" } },
+        { url: { contains: p, mode: "insensitive" } },
+      ],
+    });
   }
+
   if (f.dateFrom || f.dateTo) {
-    where.publishedAt = {};
-    if (f.dateFrom) where.publishedAt.gte = f.dateFrom;
-    if (f.dateTo) where.publishedAt.lte = f.dateTo;
+    const dateFilter: Prisma.DateTimeNullableFilter = {};
+    if (f.dateFrom) dateFilter.gte = f.dateFrom;
+    if (f.dateTo) dateFilter.lte = f.dateTo;
+    conditions.push({ publishedAt: dateFilter });
   }
-  if (f.search) {
-    const existingOR = where.OR || [];
-    where.OR = [
-      ...existingOR,
-      { text: { contains: f.search } },
-      { author: { contains: f.search } },
-    ];
+
+  if (f.author && f.author.trim()) {
+    conditions.push({
+      author: { contains: f.author.trim(), mode: "insensitive" },
+    });
   }
-  return where;
+
+  if (f.search && f.search.trim()) {
+    const s = f.search.trim();
+    conditions.push({
+      OR: [
+        { text: { contains: s, mode: "insensitive" } },
+        { author: { contains: s, mode: "insensitive" } },
+        { title: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  return conditions.length > 0 ? { AND: conditions } : {};
 }
 
 function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
-  const where: Prisma.CommentWhereInput = { isCompetitor: false };
-  if (f.keyword) where.keyword = { term: f.keyword };
-  if (f.sentiment) where.sentiment = f.sentiment;
-  if (f.author) where.author = { contains: f.author };
+  const conditions: Prisma.CommentWhereInput[] = [
+    { isCompetitor: false },
+  ];
+
+  if (f.keyword && f.keyword.trim()) {
+    const kw = f.keyword.trim();
+    conditions.push({
+      keyword: {
+        term: {
+          equals: kw,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
+
+  if (f.sentiment) {
+    conditions.push({ sentiment: f.sentiment });
+  }
+
   if (f.platform && f.platform !== "all") {
-    where.OR = [
-      { post: { platform: f.platform } },
-      { url: { contains: f.platform } },
-      { sourceKey: { contains: f.platform } },
-      { rawItem: { contains: f.platform } },
-    ];
+    const p = f.platform.toLowerCase().trim();
+    conditions.push({
+      OR: [
+        { post: { platform: { equals: p, mode: "insensitive" } } },
+        { url: { contains: p, mode: "insensitive" } },
+      ],
+    });
   }
+
   if (f.dateFrom || f.dateTo) {
-    where.publishedAt = {};
-    if (f.dateFrom) where.publishedAt.gte = f.dateFrom;
-    if (f.dateTo) where.publishedAt.lte = f.dateTo;
+    const dateFilter: Prisma.DateTimeNullableFilter = {};
+    if (f.dateFrom) dateFilter.gte = f.dateFrom;
+    if (f.dateTo) dateFilter.lte = f.dateTo;
+    conditions.push({ publishedAt: dateFilter });
   }
-  if (f.search) {
-    const existingOR = where.OR || [];
-    where.OR = [
-      ...existingOR,
-      { text: { contains: f.search } },
-      { author: { contains: f.search } },
-    ];
+
+  if (f.author && f.author.trim()) {
+    conditions.push({
+      author: { contains: f.author.trim(), mode: "insensitive" },
+    });
   }
-  return where;
+
+  if (f.search && f.search.trim()) {
+    const s = f.search.trim();
+    conditions.push({
+      OR: [
+        { text: { contains: s, mode: "insensitive" } },
+        { author: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  return conditions.length > 0 ? { AND: conditions } : {};
 }
 
 export async function purgeSeedKeyword() {
@@ -228,7 +287,7 @@ export async function getItems(f: ItemFilters) {
     const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
     const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
     return db - da;
-  });
+  }).slice(0, pageSize);
 
   return {
     items,
