@@ -1,4 +1,4 @@
-import { env, assertAiConfigured } from "../config/env";
+import { env, assertAiConfigured, refreshEnvFromDisk } from "../config/env";
 import { SentimentLabel, SentimentResult } from "../types/normalized";
 
 export class AiSentimentError extends Error {
@@ -37,6 +37,7 @@ confidence is your calibrated confidence in the label, from 0 to 1.`;
  * same.
  */
 export async function classifySentiment(text: string): Promise<SentimentResult> {
+  await refreshEnvFromDisk();
   assertAiConfigured();
 
   const trimmed = (text ?? "").trim();
