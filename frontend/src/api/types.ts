@@ -220,6 +220,7 @@ export interface GoogleMention {
   query?: string;
   published?: string;
   first_seen?: string;
+  date_status?: "confirmed" | "estimated" | "unknown";
 }
 
 export interface GoogleMentionsResponse {

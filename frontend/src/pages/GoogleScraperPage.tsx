@@ -52,13 +52,34 @@ function parseMentionDate(item: GoogleMention): Date | null {
     }
   }
 
-  // 3. Fallback to when the item was first scraped/discovered
-  if (item.first_seen) {
-    const d = new Date(item.first_seen);
-    if (!isNaN(d.getTime())) return d;
-  }
-
   return null;
+}
+
+function getItemDateInfo(item: GoogleMention): { status: "confirmed" | "estimated" | "unknown"; label: string } {
+  if (item.date_status === "confirmed") {
+    return { status: "confirmed", label: item.published || "Confirmed date" };
+  }
+  if (item.date_status === "estimated") {
+    return { status: "estimated", label: item.published || "Estimated date" };
+  }
+  if (item.published && item.published.trim()) {
+    const isRel = /\b(?:\d+)\s+(?:second|minute|hour|day|week|month|year)s?\s+ago\b/i.test(item.published);
+    return isRel
+      ? { status: "estimated", label: item.published }
+      : { status: "confirmed", label: item.published };
+  }
+  return { status: "unknown", label: "No publish date" };
+}
+
+export function getItemAgeTag(item: GoogleMention): "NEW" | "OLD" | null {
+  const itemDate = parseMentionDate(item);
+  if (!itemDate) return null;
+
+  const now = new Date();
+  const twoMonthsAgo = new Date();
+  twoMonthsAgo.setMonth(now.getMonth() - 2);
+
+  return itemDate.getTime() >= twoMonthsAgo.getTime() ? "NEW" : "OLD";
 }
 
 export function GoogleScraperPage() {
@@ -66,6 +87,7 @@ export function GoogleScraperPage() {
   const [brand, setBrand] = useState("EB1A Experts");
 
   const [platform, setPlatform] = useState("All");
+  const [ageFilter, setAgeFilter] = useState<"ALL" | "NEW" | "OLD">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [customKeyword, setCustomKeyword] = useState("");
   const [engine, setEngine] = useState("all");
@@ -307,6 +329,10 @@ export function GoogleScraperPage() {
       list = list.filter((m) => (m.platform || "Web").toLowerCase() === platform.toLowerCase());
     }
 
+    if (ageFilter !== "ALL") {
+      list = list.filter((m) => getItemAgeTag(m) === ageFilter);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
@@ -319,7 +345,18 @@ export function GoogleScraperPage() {
     }
 
     return list;
-  }, [dateFilteredMentions, platform, searchQuery]);
+  }, [dateFilteredMentions, platform, ageFilter, searchQuery]);
+
+  const ageCounts = useMemo(() => {
+    let newCount = 0;
+    let oldCount = 0;
+    dateFilteredMentions.forEach((m) => {
+      const tag = getItemAgeTag(m);
+      if (tag === "NEW") newCount++;
+      else if (tag === "OLD") oldCount++;
+    });
+    return { newCount, oldCount, total: dateFilteredMentions.length };
+  }, [dateFilteredMentions]);
 
   const dynamicCounts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -538,7 +575,7 @@ export function GoogleScraperPage() {
       </div>
 
       {/* Platform Chips Bar */}
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {platformList.map((p) => {
             const count = p === "All" ? dateFilteredMentions.length : dynamicCounts[p] || 0;
@@ -577,6 +614,59 @@ export function GoogleScraperPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* Recency Quick Filter (≤ 2 Months vs > 2 Months) */}
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-dim)" }}>Post Recency:</span>
+        <button
+          type="button"
+          onClick={() => setAgeFilter("ALL")}
+          style={{
+            padding: "4px 12px",
+            borderRadius: 14,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            border: ageFilter === "ALL" ? "1px solid var(--accent)" : "1px solid var(--border)",
+            background: ageFilter === "ALL" ? "var(--accent)" : "var(--card-bg)",
+            color: ageFilter === "ALL" ? "#fff" : "var(--text)",
+          }}
+        >
+          All ({dateFilteredMentions.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAgeFilter("NEW")}
+          style={{
+            padding: "4px 12px",
+            borderRadius: 14,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            border: ageFilter === "NEW" ? "1px solid #10b981" : "1px solid rgba(16, 185, 129, 0.3)",
+            background: ageFilter === "NEW" ? "rgba(16, 185, 129, 0.25)" : "var(--card-bg)",
+            color: ageFilter === "NEW" ? "#34d399" : "var(--text)",
+          }}
+        >
+          ✨ NEW ≤ 2 Months ({ageCounts.newCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAgeFilter("OLD")}
+          style={{
+            padding: "4px 12px",
+            borderRadius: 14,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            border: ageFilter === "OLD" ? "1px solid #94a3b8" : "1px solid var(--border)",
+            background: ageFilter === "OLD" ? "rgba(148, 163, 184, 0.25)" : "var(--card-bg)",
+            color: ageFilter === "OLD" ? "#e2e8f0" : "var(--text)",
+          }}
+        >
+          ⏳ OLD &gt; 2 Months ({ageCounts.oldCount})
+        </button>
       </div>
 
       {/* Search & Actions Bar */}
@@ -672,6 +762,51 @@ export function GoogleScraperPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      {/* Recency Tag: NEW (≤ 2 months) vs OLD (> 2 months) */}
+                      {(() => {
+                        const ageTag = getItemAgeTag(item);
+                        if (ageTag === "NEW") {
+                          return (
+                            <span
+                              style={{
+                                background: "linear-gradient(135deg, #059669, #10b981)",
+                                color: "#ffffff",
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                                boxShadow: "0 1px 3px rgba(16, 185, 129, 0.25)",
+                              }}
+                              title="Recent post — published within the last 2 months"
+                            >
+                              ✨ NEW
+                            </span>
+                          );
+                        }
+                        if (ageTag === "OLD") {
+                          return (
+                            <span
+                              style={{
+                                background: "rgba(100, 116, 139, 0.22)",
+                                color: "#94a3b8",
+                                border: "1px solid rgba(148, 163, 184, 0.25)",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                              }}
+                              title="Older post — published more than 2 months ago"
+                            >
+                              ⏳ OLD
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {isNew && (
                         <span
                           style={{
@@ -683,8 +818,9 @@ export function GoogleScraperPage() {
                             borderRadius: 4,
                             textTransform: "uppercase",
                           }}
+                          title="Scanned during this live session"
                         >
-                          NEW
+                          LIVE
                         </span>
                       )}
                       <span
@@ -700,9 +836,80 @@ export function GoogleScraperPage() {
                         {item.platform || "Web"}
                       </span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>{item.domain}</span>
-                      {item.published && (
-                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>• {item.published}</span>
-                      )}
+                      {(() => {
+                        const dateInfo = getItemDateInfo(item);
+                        if (dateInfo.status === "confirmed") {
+                          return (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                background: "rgba(34, 197, 94, 0.12)",
+                                color: "#4ade80",
+                                border: "1px solid rgba(34, 197, 94, 0.3)",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                              }}
+                              title="Confirmed publish date from page metadata or source"
+                            >
+                              <span>📅 {dateInfo.label}</span>
+                              <span style={{ fontSize: 9, opacity: 0.85, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                (Confirmed)
+                              </span>
+                            </span>
+                          );
+                        }
+                        if (dateInfo.status === "estimated") {
+                          return (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                background: "rgba(234, 179, 8, 0.12)",
+                                color: "#facc15",
+                                border: "1px solid rgba(234, 179, 8, 0.3)",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "2px 7px",
+                                borderRadius: 4,
+                              }}
+                              title="Estimated date based on relative timeframe or snippet"
+                            >
+                              <span>⏱️ {dateInfo.label}</span>
+                              <span style={{ fontSize: 9, opacity: 0.85, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                (Estimated)
+                              </span>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              background: "rgba(148, 163, 184, 0.1)",
+                              color: "var(--text-dim)",
+                              border: "1px solid rgba(148, 163, 184, 0.2)",
+                              fontSize: 11,
+                              padding: "2px 7px",
+                              borderRadius: 4,
+                            }}
+                            title={item.first_seen ? `Scraped on ${new Date(item.first_seen).toLocaleDateString()}` : "No post date detected"}
+                          >
+                            <span>No post date</span>
+                            {item.first_seen && (
+                              <span style={{ fontSize: 10, opacity: 0.8 }}>
+                                • Seen: {new Date(item.first_seen).toLocaleDateString()}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                       {item.query && (
                         <span style={{ fontSize: 11, color: "var(--text-dim)", background: "var(--border)", padding: "1px 6px", borderRadius: 4 }}>
                           q: {item.query}

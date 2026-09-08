@@ -450,6 +450,7 @@ export interface GoogleExportItem {
   query?: string | null;
   published?: string | null;
   first_seen?: string | null;
+  date_status?: string | null;
   url: string;
 }
 
@@ -597,6 +598,29 @@ function buildGoogleSummarySheet(
   });
 }
 
+function parseGoogleItemDate(item: GoogleExportItem): Date | null {
+  const raw = (item.published || "").trim();
+  if (raw) {
+    const relMatch = raw.toLowerCase().match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
+    if (relMatch) {
+      const num = parseInt(relMatch[1], 10);
+      const unit = relMatch[2];
+      const now = new Date();
+      if (unit === "second") now.setSeconds(now.getSeconds() - num);
+      else if (unit === "minute") now.setMinutes(now.getMinutes() - num);
+      else if (unit === "hour") now.setHours(now.getHours() - num);
+      else if (unit === "day") now.setDate(now.getDate() - num);
+      else if (unit === "week") now.setDate(now.getDate() - num * 7);
+      else if (unit === "month") now.setMonth(now.getMonth() - num);
+      else if (unit === "year") now.setFullYear(now.getFullYear() - num);
+      return now;
+    }
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
 function buildGoogleDataSheet(workbook: ExcelJS.Workbook, sheetName: string, items: GoogleExportItem[]) {
   const sheet = workbook.addWorksheet(sheetName, {
     views: [{ showGridLines: true, state: "frozen", ySplit: 1 }],
@@ -605,10 +629,12 @@ function buildGoogleDataSheet(workbook: ExcelJS.Workbook, sheetName: string, ite
   sheet.columns = [
     { header: "Platform", key: "platform", width: 14 },
     { header: "Domain", key: "domain", width: 22 },
+    { header: "Recency Tag", key: "recency", width: 14 },
     { header: "Query / Keyword", key: "query", width: 20 },
     { header: "Title / Headline", key: "title", width: 40 },
     { header: "Snippet / Content", key: "snippet", width: 60 },
     { header: "Published Date", key: "published", width: 20 },
+    { header: "Date Status", key: "date_status", width: 15 },
     { header: "Search Engine", key: "engine", width: 16 },
     { header: "First Discovered", key: "first_seen", width: 20 },
     { header: "Direct Web Link", key: "url", width: 28 },
@@ -621,23 +647,38 @@ function buildGoogleDataSheet(workbook: ExcelJS.Workbook, sheetName: string, ite
   if (items.length === 0) {
     const emptyRow = sheet.getRow(2);
     emptyRow.values = ["No mentions found matching the active filter criteria."];
-    sheet.mergeCells("A2:I2");
+    sheet.mergeCells("A2:K2");
     emptyRow.font = { name: "Segoe UI", size: 11, italic: true, color: { argb: "FF94A3B8" } };
     emptyRow.alignment = { vertical: "middle", horizontal: "center" };
     return;
   }
 
+  const twoMonthsAgo = new Date();
+  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
   items.forEach((item, index) => {
     const rowNum = index + 2;
     const row = sheet.getRow(rowNum);
 
+    const parsedDate = parseGoogleItemDate(item);
+    let recencyTag = "-";
+    if (parsedDate) {
+      recencyTag = parsedDate.getTime() >= twoMonthsAgo.getTime() ? "NEW" : "OLD";
+    }
+
+    const dateStatus = item.date_status
+      ? (item.date_status.charAt(0).toUpperCase() + item.date_status.slice(1))
+      : (item.published ? (/\b(?:\d+)\s+(?:second|minute|hour|day|week|month|year)s?\s+ago\b/i.test(item.published) ? "Estimated" : "Confirmed") : "Unknown");
+
     row.values = [
       item.platform || "Web",
       item.domain || "N/A",
+      recencyTag,
       item.query || "-",
       item.title || "Untitled Mention",
       item.snippet || "-",
       item.published || "N/A",
+      dateStatus,
       item.engine || "Google",
       item.first_seen || "N/A",
       item.url ? { text: "🔗 Open Link", hyperlink: item.url } : "No URL",
@@ -650,23 +691,44 @@ function buildGoogleDataSheet(workbook: ExcelJS.Workbook, sheetName: string, ite
     sheet.getCell(`A${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
     sheet.getCell(`B${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
     sheet.getCell(`C${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
-    sheet.getCell(`E${rowNum}`).alignment = { vertical: "top", wrapText: true };
-    sheet.getCell(`F${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`D${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`F${rowNum}`).alignment = { vertical: "top", wrapText: true };
     sheet.getCell(`G${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
     sheet.getCell(`H${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
     sheet.getCell(`I${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`J${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`K${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
 
     // Domain styling
     sheet.getCell(`B${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF0284C7" } };
 
+    // Recency tag styling
+    if (recencyTag === "NEW") {
+      sheet.getCell(`C${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF16A34A" } };
+      sheet.getCell(`C${rowNum}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
+    } else if (recencyTag === "OLD") {
+      sheet.getCell(`C${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF64748B" } };
+      sheet.getCell(`C${rowNum}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+    }
+
+    // Date status coloring
+    if (dateStatus === "Confirmed") {
+      sheet.getCell(`H${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF16A34A" } };
+    } else if (dateStatus === "Estimated") {
+      sheet.getCell(`H${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFD97706" } };
+    } else {
+      sheet.getCell(`H${rowNum}`).font = { name: "Segoe UI", size: 10, color: { argb: "FF94A3B8" } };
+    }
+
     // Direct URL Hyperlink Styling
     if (item.url) {
-      sheet.getCell(`I${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF2563EB" }, underline: true };
+      sheet.getCell(`K${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF2563EB" }, underline: true };
     }
 
     // Alternating Zebra Row Background
     if (index % 2 === 1) {
-      for (let col = 1; col <= 9; col++) {
+      for (let col = 1; col <= 11; col++) {
+        if (col === 3) continue; // preserve recency tag fill
         const c = sheet.getCell(rowNum, col);
         if (!c.fill) {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };

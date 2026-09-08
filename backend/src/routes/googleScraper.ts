@@ -21,7 +21,7 @@ let lastScanAdded = 0;
 
 const sseClients: Response[] = [];
 
-function safeParseDate(val: any, snippetFallback?: string): Date {
+function safeParseDate(val: any, snippetFallback?: string): Date | null {
   let str = (typeof val === "string" ? val : "").trim();
 
   // If no direct date provided, check for date prefix in snippet (e.g. "Sep 5, 2024 — ...", "3 days ago — ...")
@@ -37,7 +37,7 @@ function safeParseDate(val: any, snippetFallback?: string): Date {
     }
   }
 
-  if (!str) return new Date();
+  if (!str) return null;
 
   // Handle relative dates like "1 year ago", "3 days ago", "2 months ago"
   const relMatch = str.toLowerCase().match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
@@ -60,7 +60,7 @@ function safeParseDate(val: any, snippetFallback?: string): Date {
     return parsed;
   }
 
-  return new Date();
+  return null;
 }
 
 function broadcastSSE(event: string, data: any) {

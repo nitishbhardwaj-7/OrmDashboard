@@ -126,7 +126,7 @@ def load_config(path=CONFIG_PATH):
 
 MENTION_FIELDS = ("id", "title_key", "norm_url", "url", "title", "snippet",
                   "domain", "platform", "source_id", "engine", "query",
-                  "published", "first_seen")
+                  "published", "first_seen", "date_status")
 
 PLATFORMS = [
     ("Reddit",    ["reddit.com"]),
@@ -216,6 +216,14 @@ class Store:
         doc["id"] = doc.pop("_id")
         if not doc.get("platform"):
             doc["platform"] = platform_of(doc.get("domain"), doc.get("source_id"))
+        if not doc.get("date_status"):
+            pub = (doc.get("published") or "").strip()
+            if not pub:
+                doc["date_status"] = "unknown"
+            elif re.search(r"\b(?:second|minute|hour|day|week|month|year)s?\s+ago\b", pub, re.I):
+                doc["date_status"] = "estimated"
+            else:
+                doc["date_status"] = "confirmed"
         return doc
 
     def pending(self):
@@ -376,9 +384,14 @@ class SQLiteStore:
                     query TEXT,
                     published TEXT,
                     first_seen TEXT,
+                    date_status TEXT DEFAULT 'unknown',
                     notified INTEGER DEFAULT 0
                 )
             """)
+            try:
+                conn.execute("ALTER TABLE mentions ADD COLUMN date_status TEXT DEFAULT 'unknown'")
+            except Exception:
+                pass
             conn.execute("CREATE INDEX IF NOT EXISTS idx_first_seen ON mentions(first_seen)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_platform ON mentions(platform)")
 
@@ -413,13 +426,13 @@ class SQLiteStore:
         with self._get_conn() as conn:
             conn.execute("""
                 INSERT OR IGNORE INTO mentions
-                (id, title_key, norm_url, url, title, snippet, domain, platform, source_id, engine, query, published, first_seen, notified)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                (id, title_key, norm_url, url, title, snippet, domain, platform, source_id, engine, query, published, first_seen, date_status, notified)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             """, (
                 row.get("id"), row.get("title_key"), row.get("norm_url"), row.get("url"),
                 row.get("title"), row.get("snippet"), row.get("domain"), row.get("platform"),
                 row.get("source_id"), row.get("engine"), row.get("query"), row.get("published"),
-                row.get("first_seen")
+                row.get("first_seen"), row.get("date_status", "unknown")
             ))
 
     def pending(self):
@@ -707,20 +720,60 @@ def mention_id(norm_url):
     return hashlib.sha256(norm_url.encode("utf-8")).hexdigest()[:32]
 
 
+def extract_date_from_html(html_str):
+    if not html_str:
+        return ""
+    # 1. JSON-LD datePublished / dateCreated / publishedDate
+    m = re.search(r'"(?:datePublished|publishedDate|dateCreated)"\s*:\s*"([^"]+)"', html_str, re.I)
+    if m:
+        return m.group(1).strip()
+    # 2. Meta article:published_time or og:published_time or pubdate or date
+    m = re.search(r'<meta\s+[^>]*(?:property|name)=["\'](?:article:published_time|og:published_time|pubdate|publishdate|date|sailthru\.date|parsely-pub-date|DC\.date\.issued)["\'][^>]*content=["\']([^"\']+)["\']', html_str, re.I)
+    if m:
+        return m.group(1).strip()
+    m = re.search(r'<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\'](?:article:published_time|og:published_time|pubdate|publishdate|date|sailthru\.date|parsely-pub-date|DC\.date\.issued)["\']', html_str, re.I)
+    if m:
+        return m.group(1).strip()
+    # 3. HTML5 <time datetime="...">
+    m = re.search(r'<time[^>]+datetime=["\']([^"\']+)["\']', html_str, re.I)
+    if m:
+        return m.group(1).strip()
+    return ""
+
+
 def extract_content(url, fallback_snippet=""):
-    """Pull readable text from result URL using trafilatura, capping length at 6000 chars."""
-    if trafilatura is None:
-        return fallback_snippet
-    try:
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
-            return fallback_snippet
-        text = trafilatura.extract(downloaded) or ""
-        text = text.strip()
-        return text[:6000] if text else fallback_snippet
-    except Exception as exc:
-        log("Content extraction notice for %s: %s" % (url, exc))
-        return fallback_snippet
+    """Pull readable text and real publish date from result URL using trafilatura (Open Graph tags, JSON-LD, etc.) or HTTP fallback."""
+    extracted_date = ""
+    downloaded = None
+    if trafilatura is not None:
+        try:
+            downloaded = trafilatura.fetch_url(url)
+            if downloaded:
+                try:
+                    meta = trafilatura.extract_metadata(downloaded)
+                    if meta and meta.date:
+                        extracted_date = str(meta.date).strip()
+                except Exception:
+                    pass
+                if not extracted_date:
+                    extracted_date = extract_date_from_html(downloaded)
+                text = trafilatura.extract(downloaded) or ""
+                text = text.strip()
+                return (text[:6000] if text else fallback_snippet), extracted_date
+        except Exception as exc:
+            log("Content extraction notice for %s: %s" % (url, exc))
+
+    if not downloaded:
+        # Fallback lightweight fetch for date if trafilatura failed or is unavailable
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                raw_html = resp.read().decode("utf-8", "replace")[:100000]
+                extracted_date = extract_date_from_html(raw_html)
+        except Exception:
+            pass
+
+    return fallback_snippet, extracted_date
 
 
 class SerperDevApi:
@@ -809,20 +862,29 @@ def extract_results(engine, payload):
             continue
         snippet = it.get("snippet") or it.get("description") or ""
         raw_date = it.get("date") or it.get("published_time") or it.get("iso_date") or it.get("publishedDate") or ""
-        if not raw_date and snippet:
+        date_status = "unknown"
+        if raw_date:
+            if re.search(r"\b(?:\d+)\s+(?:second|minute|hour|day|week|month|year)s?\s+ago\b", raw_date, re.I):
+                date_status = "estimated"
+            else:
+                date_status = "confirmed"
+        elif snippet:
             m_date = re.match(r"^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*[—\-–\.]", snippet)
             if m_date:
                 raw_date = m_date.group(1).strip()
+                date_status = "confirmed"
             else:
                 m_rel = re.match(r"^(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\s*[—\-–\.]", snippet, re.I)
                 if m_rel:
                     raw_date = m_rel.group(1).strip()
+                    date_status = "estimated"
 
         out.append({
             "url": link,
             "title": it.get("title") or "(no title)",
             "snippet": snippet[:1000],
             "published": raw_date,
+            "date_status": date_status,
             "extra": it.get("source"),
         })
     return out
@@ -919,6 +981,18 @@ def collect(cfg, api, store, force=True, dry_run=False, keyword_override=None, e
                         stats["dupe"] += 1
                         continue
 
+                    # Wire in extract_content as fallback whenever Serper doesn't return a date
+                    pub_date = res.get("published") or ""
+                    date_status = res.get("date_status") or "unknown"
+                    if not pub_date:
+                        try:
+                            _, fetched_date = extract_content(res["url"], res.get("snippet", ""))
+                            if fetched_date:
+                                pub_date = fetched_date
+                                date_status = "confirmed"
+                        except Exception:
+                            pass
+
                     seen_this_run.add(mid)
                     if tkey:
                         seen_this_run.add(tkey)
@@ -935,8 +1009,9 @@ def collect(cfg, api, store, force=True, dry_run=False, keyword_override=None, e
                         "source_id": sid,
                         "engine": engine,
                         "query": query,
-                        "published": res.get("published") or "",
+                        "published": pub_date,
                         "first_seen": now,
+                        "date_status": date_status,
                     }
                     if not dry_run:
                         store.add(row)
