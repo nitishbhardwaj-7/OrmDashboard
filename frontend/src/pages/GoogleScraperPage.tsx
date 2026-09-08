@@ -63,9 +63,6 @@ function parseMentionDate(item: GoogleMention): Date | null {
 
 export function GoogleScraperPage() {
   const [mentions, setMentions] = useState<GoogleMention[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [total, setTotal] = useState(0);
-  const [shown, setShown] = useState(0);
   const [brand, setBrand] = useState("EB1A Experts");
 
   const [platform, setPlatform] = useState("All");
@@ -99,9 +96,6 @@ export function GoogleScraperPage() {
       setLoading(true);
       const res = await api.getGoogleMentions("All", "");
       setMentions(res.mentions || []);
-      setCounts(res.counts || {});
-      setTotal(res.total || 0);
-      setShown(res.shown || 0);
       if (res.brand) setBrand(res.brand);
     } catch (err: any) {
       showToast(err?.message || "Failed to load Google mentions", "err");
@@ -165,11 +159,6 @@ export function GoogleScraperPage() {
         const item: GoogleMention = JSON.parse(e.data);
         setSessionNewIds((prev) => new Set(prev).add(item.id));
         setMentions((prev) => [item, ...prev.filter((m) => m.id !== item.id)]);
-        setTotal((t) => t + 1);
-        setCounts((prev) => ({
-          ...prev,
-          [item.platform || "Web"]: (prev[item.platform || "Web"] || 0) + 1,
-        }));
       } catch {
         // ignore
       }
@@ -193,14 +182,8 @@ export function GoogleScraperPage() {
       loadData();
     });
 
-    es.addEventListener("stats", (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d.counts) setCounts(d.counts);
-        if (typeof d.total === "number") setTotal(d.total);
-      } catch {
-        // ignore
-      }
+    es.addEventListener("stats", () => {
+      // stats dynamically computed from mentions & date range
     });
 
     return () => es.close();
