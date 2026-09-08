@@ -77,7 +77,17 @@ export function SettingsPage() {
   }
 
   function handleModelSelect(model: string) {
-    setSettings((prev) => ({ ...prev, aiModel: model }));
+    let url = settings.aiApiUrl;
+    if (model.includes("mistral")) {
+      url = "https://api.mistral.ai/v1/chat/completions";
+    } else if (model.includes("gemini")) {
+      url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+    } else if (model.includes("llama")) {
+      url = "https://api.groq.com/openai/v1/chat/completions";
+    } else if (model.includes("gpt")) {
+      url = "https://api.openai.com/v1/chat/completions";
+    }
+    setSettings((prev) => ({ ...prev, aiModel: model, aiApiUrl: url }));
   }
 
   if (loading) {
@@ -373,7 +383,7 @@ export function SettingsPage() {
             />
             <div className="preset-chips" style={{ marginTop: 8 }}>
               <span className="chip-label">Quick select:</span>
-              {["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gpt-4o-mini"].map((model) => (
+              {["open-mistral-7b", "gemini-2.0-flash", "llama-3.1-8b-instant", "gpt-4o-mini"].map((model) => (
                 <button
                   key={model}
                   type="button"
