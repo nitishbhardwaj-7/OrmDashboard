@@ -222,7 +222,7 @@ export function ManualScraperPage() {
             </span>
           </div>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-dim)" }}>
-            Automatically scrapes every active keyword card across Reddit, Quora, TeamBlind, Trustpilot, and LinkedIn every 60 minutes with live AI sentiment analysis and instant Resend email alerts.
+            Automatically scrapes every active keyword card across Reddit, Quora, TeamBlind, Trustpilot, and LinkedIn every 60 minutes with live AI sentiment analysis and instant SMTP email alerts.
           </p>
         </div>
 

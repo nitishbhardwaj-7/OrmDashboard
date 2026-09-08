@@ -9,15 +9,19 @@ export function SettingsPage() {
     aiApiUrl: "",
     aiApiKey: "",
     aiModel: "",
-    resendApiKey: "",
-    alertEmail: "delivered@resend.dev",
+    smtpHost: "",
+    smtpPort: "587",
+    smtpUser: "",
+    smtpPass: "",
+    mailFrom: "",
+    alertEmail: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
   const [resettingDb, setResettingDb] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
-  const [showResendKey, setShowResendKey] = useState(false);
-  const [showGmailPass, setShowGmailPass] = useState(false);
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showSearchApiKey, setShowSearchApiKey] = useState(false);
   const [showMongodbUri, setShowMongodbUri] = useState(false);
   const [showDatabaseUrl, setShowDatabaseUrl] = useState(false);
@@ -52,6 +56,19 @@ export function SettingsPage() {
       setMessage({ type: "error", text: err.message || "Failed to save settings." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTestEmail() {
+    setTestingEmail(true);
+    setMessage(null);
+    try {
+      const res = await api.testEmail();
+      setMessage({ type: "success", text: res.message || "✓ Test alert email delivered successfully via SMTP!" });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Failed to send test email. Please verify your SMTP settings." });
+    } finally {
+      setTestingEmail(false);
     }
   }
 
@@ -99,13 +116,17 @@ export function SettingsPage() {
     );
   }
 
+  const isEmailConfigured = Boolean(
+    (settings.smtpUser || settings.gmailUser) && (settings.smtpPass || settings.gmailPass)
+  );
+
   return (
     <div style={{ maxWidth: 840 }}>
       <div className="page-header">
         <div>
           <h2>Dashboard Settings</h2>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Configure integrations for SearchApi.io Google Scraper, AI Sentiment engine, Resend email alerts, and PostgreSQL / Neon storage.
+            Configure integrations for SearchApi.io Google Scraper, AI Sentiment engine, SMTP email alerts (multi-recipient), and PostgreSQL / Neon storage.
           </p>
         </div>
       </div>
@@ -125,14 +146,13 @@ export function SettingsPage() {
               Serper / Google
             </div>
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
-              {settings.searchApiConfigured ? "Ready" : "Incomplete"}
+              {settings.searchApiConfigured || settings.serperApiConfigured ? "Ready" : "Incomplete"}
             </div>
           </div>
-          <span className={`badge ${settings.searchApiConfigured ? "POSITIVE" : "NEGATIVE"}`}>
-            {settings.searchApiConfigured ? "Active" : "Off"}
+          <span className={`badge ${settings.searchApiConfigured || settings.serperApiConfigured ? "POSITIVE" : "NEGATIVE"}`}>
+            {settings.searchApiConfigured || settings.serperApiConfigured ? "Active" : "Off"}
           </span>
         </div>
-
 
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -151,14 +171,14 @@ export function SettingsPage() {
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Email Alerts
+              SMTP Email Alerts
             </div>
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
-              {settings.resendConfigured ? "Active" : "Disabled"}
+              {isEmailConfigured ? "Configured" : "Disabled"}
             </div>
           </div>
-          <span className={`badge ${settings.resendConfigured ? "POSITIVE" : "NEUTRAL"}`}>
-            {settings.resendConfigured ? "Active" : "Off"}
+          <span className={`badge ${isEmailConfigured ? "POSITIVE" : "NEUTRAL"}`}>
+            {isEmailConfigured ? "Active" : "Off"}
           </span>
         </div>
 
@@ -178,86 +198,125 @@ export function SettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {/* Email Alerts Card (Gmail SMTP / Resend) */}
+        {/* Email Alerts Card (100% SMTP with Multi-Recipient Support) */}
         <div className="card settings-section" style={{ border: "1px solid rgba(220, 38, 38, 0.4)", background: "rgba(220, 38, 38, 0.03)" }}>
-          <div style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 16, color: "#f87171" }}>🚨 Instant Negative Alert Email Notifications</h3>
-            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Sends immediate email notifications whenever a NEW negative post or comment is discovered via Gmail SMTP or Resend.
-            </span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, color: "#f87171" }}>🚨 Instant Negative Alert Email Notifications (SMTP)</h3>
+              <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                Sends immediate email notifications directly via SMTP whenever a NEW negative post or comment is discovered.
+              </span>
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={handleTestEmail}
+              disabled={testingEmail || saving}
+              style={{
+                fontSize: 12,
+                padding: "6px 14px",
+                borderColor: "rgba(220, 38, 38, 0.5)",
+                color: "#f87171",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {testingEmail ? (
+                <>
+                  <span className="spinner" style={{ marginRight: 6, width: 12, height: 12 }} />
+                  Sending Test…
+                </>
+              ) : (
+                "🧪 Send Test Email"
+              )}
+            </button>
           </div>
 
-          {/* Gmail SMTP Settings */}
-          <div style={{ padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 16, border: "1px solid rgba(255,255,255,0.08)" }}>
-            <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#e2e8f0" }}>📧 Gmail SMTP (Recommended for sending to any recipient)</h4>
+          {/* SMTP Credentials */}
+          <div style={{ padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 16, border: "1px solid rgba(255,255,255,0.08)" }}>
+            <h4 style={{ margin: "0 0 12px 0", fontSize: 14, color: "#e2e8f0" }}>📧 SMTP Mail Server Settings</h4>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 12, marginBottom: 12 }}>
+              <div className="settings-form-group">
+                <label htmlFor="smtpHost">SMTP Host (Leave empty for Gmail)</label>
+                <input
+                  id="smtpHost"
+                  type="text"
+                  value={settings.smtpHost ?? ""}
+                  onChange={(e) => setSettings({ ...settings, smtpHost: e.target.value })}
+                  placeholder="smtp.gmail.com (default) or mail.yourdomain.com"
+                />
+              </div>
+
+              <div className="settings-form-group">
+                <label htmlFor="smtpPort">SMTP Port</label>
+                <input
+                  id="smtpPort"
+                  type="text"
+                  value={settings.smtpPort ?? "587"}
+                  onChange={(e) => setSettings({ ...settings, smtpPort: e.target.value })}
+                  placeholder="587 or 465"
+                />
+              </div>
+            </div>
+
             <div className="settings-form-group">
-              <label htmlFor="gmailUser">Gmail Sender Address</label>
+              <label htmlFor="smtpUser">SMTP / Gmail Username (Sender Address)</label>
               <input
-                id="gmailUser"
+                id="smtpUser"
                 type="email"
-                value={settings.gmailUser ?? ""}
-                onChange={(e) => setSettings({ ...settings, gmailUser: e.target.value })}
-                placeholder="your.email@gmail.com"
+                value={settings.smtpUser ?? settings.gmailUser ?? ""}
+                onChange={(e) => setSettings({ ...settings, smtpUser: e.target.value, gmailUser: e.target.value })}
+                placeholder="your.email@gmail.com or alerts@yourdomain.com"
               />
-              <span className="field-hint">Your Gmail address used to dispatch alert emails.</span>
+              <span className="field-hint">Your email account username used to authenticate with the SMTP server.</span>
             </div>
 
             <div className="settings-form-group" style={{ marginTop: 12 }}>
-              <label htmlFor="gmailPass">Gmail App Password</label>
+              <label htmlFor="smtpPass">SMTP Password / Google App Password</label>
               <div className="input-with-button">
                 <input
-                  id="gmailPass"
-                  type={showGmailPass ? "text" : "password"}
-                  value={settings.gmailPass ?? ""}
-                  onChange={(e) => setSettings({ ...settings, gmailPass: e.target.value })}
-                  placeholder="16-character Google App Password (e.g. abcd efgh ijkl mnop)"
+                  id="smtpPass"
+                  type={showSmtpPass ? "text" : "password"}
+                  value={settings.smtpPass ?? settings.gmailPass ?? ""}
+                  onChange={(e) => setSettings({ ...settings, smtpPass: e.target.value, gmailPass: e.target.value })}
+                  placeholder="16-character Google App Password (e.g. abcd efgh ijkl mnop) or SMTP password"
                 />
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => setShowGmailPass(!showGmailPass)}
+                  onClick={() => setShowSmtpPass(!showSmtpPass)}
                   style={{ minWidth: 64 }}
                 >
-                  {showGmailPass ? "Hide" : "Show"}
+                  {showSmtpPass ? "Hide" : "Show"}
                 </button>
               </div>
-              <span className="field-hint">Generate a free 16-character App Password at myaccount.google.com/apppasswords.</span>
+              <span className="field-hint">For Gmail, use a 16-character App Password generated at myaccount.google.com/apppasswords.</span>
+            </div>
+
+            <div className="settings-form-group" style={{ marginTop: 12 }}>
+              <label htmlFor="mailFrom">Custom 'From' Header (Optional)</label>
+              <input
+                id="mailFrom"
+                type="text"
+                value={settings.mailFrom ?? ""}
+                onChange={(e) => setSettings({ ...settings, mailFrom: e.target.value })}
+                placeholder="ORM Brand Monitor <alerts@yourcompany.com>"
+              />
+              <span className="field-hint">Optional custom display name and from address.</span>
             </div>
           </div>
 
           <div className="settings-form-group">
-            <label htmlFor="resendApiKey">Resend API Key (Fallback)</label>
-            <div className="input-with-button">
-              <input
-                id="resendApiKey"
-                type={showResendKey ? "text" : "password"}
-                value={settings.resendApiKey ?? ""}
-                onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
-                placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              />
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setShowResendKey(!showResendKey)}
-                style={{ minWidth: 64 }}
-              >
-                {showResendKey ? "Hide" : "Show"}
-              </button>
-            </div>
-            <span className="field-hint">Used as fallback if Gmail SMTP is not configured.</span>
-          </div>
-
-          <div className="settings-form-group" style={{ marginTop: 16 }}>
-            <label htmlFor="alertEmail">Alert Recipient Email(s)</label>
+            <label htmlFor="alertEmail">Alert Recipient Email(s) (Supports Multiple Recipients)</label>
             <input
               id="alertEmail"
               type="text"
-              value={settings.alertEmail ?? "delivered@resend.dev"}
+              value={settings.alertEmail ?? ""}
               onChange={(e) => setSettings({ ...settings, alertEmail: e.target.value })}
-              placeholder="nitisshhhh@gmail.com, itsnitish9319192299@gmail.com"
+              placeholder="recipient1@domain.com, recipient2@domain.com, team@company.com"
             />
             <span className="field-hint">
-              Target email address(es) where negative mention alert reports will be delivered. Separate multiple addresses with commas.
+              Target email addresses where negative mention alerts will be delivered. Separate multiple emails with commas, semicolons, or spaces.
             </span>
           </div>
         </div>

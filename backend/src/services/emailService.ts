@@ -13,24 +13,64 @@ export interface NegativeMentionPayload {
   publishedAt?: Date | string | null;
 }
 
-export async function sendNegativeMentionAlert(item: NegativeMentionPayload): Promise<boolean> {
-  refreshEnvFromDisk();
-  const gmailUser = env.GMAIL_USER?.trim() || "";
-  const gmailPass = env.GMAIL_PASS?.trim() || "";
-  const resendApiKey = env.RESEND_API_KEY?.trim() || "";
+export function parseRecipientList(raw?: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[\s,;]+/)
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0 && e.includes("@"));
+}
 
-  if (!gmailUser && !gmailPass && !resendApiKey) {
-    console.warn("Skipping email alert: Neither Gmail SMTP nor Resend API is configured.");
+function createSmtpTransporter() {
+  const host = env.SMTP_HOST?.trim() || "";
+  const port = Number(env.SMTP_PORT) || 587;
+  const user = (env.SMTP_USER || env.GMAIL_USER)?.trim() || "";
+  const pass = (env.SMTP_PASS || env.GMAIL_PASS)?.trim() || "";
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  if (host) {
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: {
+        user,
+        pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+
+  // Default to standard Gmail service
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user,
+      pass,
+    },
+  });
+}
+
+export async function sendNegativeMentionAlert(item: NegativeMentionPayload): Promise<boolean> {
+  await refreshEnvFromDisk();
+
+  const transporter = createSmtpTransporter();
+  if (!transporter) {
+    console.warn("Skipping email alert: SMTP is not configured. Please set SMTP_USER / GMAIL_USER and SMTP_PASS / GMAIL_PASS in Settings.");
     return false;
   }
 
-  const rawRecipients = env.ALERT_EMAIL?.trim() || "delivered@resend.dev";
-  const recipientEmails = rawRecipients
-    .split(/[\s,;]+/)
-    .map((e) => e.trim())
-    .filter((e) => e.length > 0);
+  const recipients = parseRecipientList(env.ALERT_EMAIL);
+  if (recipients.length === 0) {
+    console.warn("Skipping email alert: No valid recipient emails configured in ALERT_EMAIL.");
+    return false;
+  }
 
-  const finalRecipients = recipientEmails.length > 0 ? recipientEmails : ["delivered@resend.dev"];
   const platformName = (item.platform || "Social Media").toUpperCase();
   const itemType = item.type.toUpperCase();
   const dateStr = item.publishedAt ? new Date(item.publishedAt).toLocaleString() : new Date().toLocaleString();
@@ -101,77 +141,28 @@ ${escapeHtml(item.text || "No text content available.")}
 
       <!-- Footer -->
       <div style="background: #f8fafc; padding: 12px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-        Sent automatically by <strong>ORM Dashboard Monitor</strong> • No repetitive alerts are sent for existing items.
+        Sent automatically via <strong>SMTP Alert Monitor</strong> to ${escapeHtml(recipients.join(", "))} • No repetitive alerts are sent for existing items.
       </div>
     </div>
   `;
 
-  // 1) Use Gmail SMTP if configured
-  if (gmailUser && gmailPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: gmailUser,
-          pass: gmailPass,
-        },
-      });
+  try {
+    const senderUser = (env.SMTP_USER || env.GMAIL_USER)?.trim() || "alerts@ormdashboard.com";
+    const fromAddress = env.MAIL_FROM?.trim() || `ORM Alert Monitor <${senderUser}>`;
 
-      const info = await transporter.sendMail({
-        from: `ORM Alert Monitor <${gmailUser}>`,
-        to: finalRecipients.join(", "),
-        subject,
-        html,
-      });
+    const info = await transporter.sendMail({
+      from: fromAddress,
+      to: recipients.join(", "),
+      subject,
+      html,
+    });
 
-      console.log(`✓ Gmail SMTP alert delivered to [${finalRecipients.join(", ")}]! Message ID: ${info.messageId}`);
-      return true;
-    } catch (err: any) {
-      console.error("Gmail SMTP alert failed:", err?.message || err);
-      // Fall through to Resend if configured
-    }
+    console.log(`✓ SMTP alert delivered successfully to [${recipients.join(", ")}]! Message ID: ${info.messageId}`);
+    return true;
+  } catch (err: any) {
+    console.error("SMTP alert failed:", err?.message || err);
+    return false;
   }
-
-  // 2) Fallback to Resend API
-  if (resendApiKey) {
-    try {
-      const results = await Promise.allSettled(
-        finalRecipients.map(async (recipient) => {
-          const response = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: "ORM Alert Monitor <onboarding@resend.dev>",
-              to: [recipient],
-              subject,
-              html,
-            }),
-          });
-
-          if (!response.ok) {
-            const errText = await response.text().catch(() => "");
-            console.warn(`Resend email alert to ${recipient} failed (${response.status}): ${errText}`);
-            return false;
-          }
-
-          const data: any = await response.json().catch(() => null);
-          console.log(`✓ Resend email alert delivered to ${recipient}! ID: ${data?.id}`);
-          return true;
-        })
-      );
-
-      const sentCount = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
-      return sentCount > 0;
-    } catch (err: any) {
-      console.error("Error sending Resend email alert:", err?.message || err);
-      return false;
-    }
-  }
-
-  return false;
 }
 
 function escapeHtml(str: string): string {

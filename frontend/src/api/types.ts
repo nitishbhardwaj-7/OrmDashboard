@@ -113,19 +113,25 @@ export interface DashboardSettings {
   aiApiUrl: string;
   aiApiKey: string;
   aiModel: string;
-  resendApiKey?: string;
+  smtpHost?: string;
+  smtpPort?: string;
+  smtpUser?: string;
+  smtpPass?: string;
   gmailUser?: string;
   gmailPass?: string;
+  mailFrom?: string;
   alertEmail?: string;
   searchApiKey?: string;
+  serperApiKey?: string;
   mongodbUri?: string;
   mongodbDb?: string;
   databaseUrl?: string;
   apifyConfigured?: boolean;
   aiConfigured?: boolean;
-  resendConfigured?: boolean;
+  smtpConfigured?: boolean;
   gmailConfigured?: boolean;
   searchApiConfigured?: boolean;
+  serperApiConfigured?: boolean;
   databaseConfigured?: boolean;
 }
 

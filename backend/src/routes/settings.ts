@@ -20,9 +20,13 @@ settingsRouter.post("/", async (req, res, next) => {
       aiApiUrl,
       aiApiKey,
       aiModel,
-      resendApiKey,
+      smtpHost,
+      smtpPort,
+      smtpUser,
+      smtpPass,
       gmailUser,
       gmailPass,
+      mailFrom,
       alertEmail,
       searchApiKey,
       serperApiKey,
@@ -37,9 +41,13 @@ settingsRouter.post("/", async (req, res, next) => {
       aiApiUrl: typeof aiApiUrl === "string" ? aiApiUrl : undefined,
       aiApiKey: typeof aiApiKey === "string" ? aiApiKey : undefined,
       aiModel: typeof aiModel === "string" ? aiModel : undefined,
-      resendApiKey: typeof resendApiKey === "string" ? resendApiKey : undefined,
+      smtpHost: typeof smtpHost === "string" ? smtpHost : undefined,
+      smtpPort: typeof smtpPort === "string" ? smtpPort : undefined,
+      smtpUser: typeof smtpUser === "string" ? smtpUser : undefined,
+      smtpPass: typeof smtpPass === "string" ? smtpPass : undefined,
       gmailUser: typeof gmailUser === "string" ? gmailUser : undefined,
       gmailPass: typeof gmailPass === "string" ? gmailPass : undefined,
+      mailFrom: typeof mailFrom === "string" ? mailFrom : undefined,
       alertEmail: typeof alertEmail === "string" ? alertEmail : undefined,
       searchApiKey: typeof searchApiKey === "string" ? searchApiKey : undefined,
       serperApiKey: typeof serperApiKey === "string" ? serperApiKey : undefined,
@@ -55,6 +63,44 @@ settingsRouter.post("/", async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+});
+
+// POST /api/settings/test-email — send test alert email to all configured recipients via SMTP
+settingsRouter.post("/test-email", async (_req, res, _next) => {
+  try {
+    const { sendNegativeMentionAlert, parseRecipientList } = await import("../services/emailService");
+    const { env } = await import("../config/env");
+
+    const recipients = parseRecipientList(env.ALERT_EMAIL);
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: "No recipient emails configured in Alert Recipient Email(s)." });
+    }
+
+    const ok = await sendNegativeMentionAlert({
+      type: "post",
+      keyword: "EB1A Experts (SMTP Test Alert)",
+      platform: "reddit",
+      text: "✓ This is a test email sent from ORM Dashboard to confirm SMTP configuration and multi-recipient email delivery.",
+      author: "ORM Alert System",
+      url: "https://reddit.com",
+      sentiment: "NEGATIVE",
+      confidence: 0.98,
+      publishedAt: new Date(),
+    });
+
+    if (ok) {
+      res.json({
+        ok: true,
+        message: `✓ Test alert delivered successfully via SMTP to ${recipients.length} recipient(s): [${recipients.join(", ")}]!`,
+      });
+    } else {
+      res.status(500).json({
+        error: "Failed to deliver test email via SMTP. Please verify your SMTP Host, Username, Password, and Recipient addresses.",
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Unexpected error dispatching test email." });
   }
 });
 

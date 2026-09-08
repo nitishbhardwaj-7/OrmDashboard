@@ -81,6 +81,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  testEmail: () =>
+    request<{ ok: boolean; message: string }>("/settings/test-email", {
+      method: "POST",
+    }),
+
   resetDatabase: () =>
     request<{
       ok: boolean;

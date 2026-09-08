@@ -37,10 +37,14 @@ export const env = {
   AI_MODEL: optional("AI_MODEL", "open-mistral-7b"),
   AI_CONCURRENCY: Number(optional("AI_CONCURRENCY", "3")),
 
-  RESEND_API_KEY: optional("RESEND_API_KEY"),
-  GMAIL_USER: optional("GMAIL_USER"),
-  GMAIL_PASS: optional("GMAIL_PASS"),
-  ALERT_EMAIL: optional("ALERT_EMAIL", "delivered@resend.dev"),
+  SMTP_HOST: optional("SMTP_HOST"),
+  SMTP_PORT: optional("SMTP_PORT", "587"),
+  SMTP_USER: optional("SMTP_USER") || optional("GMAIL_USER"),
+  SMTP_PASS: optional("SMTP_PASS") || optional("GMAIL_PASS"),
+  GMAIL_USER: optional("GMAIL_USER") || optional("SMTP_USER"),
+  GMAIL_PASS: optional("GMAIL_PASS") || optional("SMTP_PASS"),
+  MAIL_FROM: optional("MAIL_FROM"),
+  ALERT_EMAIL: optional("ALERT_EMAIL"),
 
   SERPER_API_KEY: optional("SERPER_API_KEY") || optional("SEARCHAPI_KEY"),
   SEARCHAPI_KEY: optional("SEARCHAPI_KEY") || optional("SERPER_API_KEY"),
@@ -55,10 +59,14 @@ export async function refreshEnvFromDisk() {
     if (fs.existsSync(envPath)) {
       const raw = fs.readFileSync(envPath, "utf-8");
       const parsed = dotenv.parse(raw);
-      if (parsed.GMAIL_USER !== undefined) { env.GMAIL_USER = parsed.GMAIL_USER.trim(); process.env.GMAIL_USER = env.GMAIL_USER; }
-      if (parsed.GMAIL_PASS !== undefined) { env.GMAIL_PASS = parsed.GMAIL_PASS.trim(); process.env.GMAIL_PASS = env.GMAIL_PASS; }
+      if (parsed.SMTP_HOST !== undefined) { env.SMTP_HOST = parsed.SMTP_HOST.trim(); process.env.SMTP_HOST = env.SMTP_HOST; }
+      if (parsed.SMTP_PORT !== undefined) { env.SMTP_PORT = parsed.SMTP_PORT.trim(); process.env.SMTP_PORT = env.SMTP_PORT; }
+      if (parsed.SMTP_USER !== undefined) { env.SMTP_USER = parsed.SMTP_USER.trim(); env.GMAIL_USER = env.SMTP_USER; process.env.SMTP_USER = env.SMTP_USER; process.env.GMAIL_USER = env.SMTP_USER; }
+      if (parsed.SMTP_PASS !== undefined) { env.SMTP_PASS = parsed.SMTP_PASS.trim(); env.GMAIL_PASS = env.SMTP_PASS; process.env.SMTP_PASS = env.SMTP_PASS; process.env.GMAIL_PASS = env.SMTP_PASS; }
+      if (parsed.GMAIL_USER !== undefined) { env.GMAIL_USER = parsed.GMAIL_USER.trim(); env.SMTP_USER = env.GMAIL_USER; process.env.GMAIL_USER = env.GMAIL_USER; process.env.SMTP_USER = env.GMAIL_USER; }
+      if (parsed.GMAIL_PASS !== undefined) { env.GMAIL_PASS = parsed.GMAIL_PASS.trim(); env.SMTP_PASS = env.GMAIL_PASS; process.env.GMAIL_PASS = env.GMAIL_PASS; process.env.SMTP_PASS = env.GMAIL_PASS; }
+      if (parsed.MAIL_FROM !== undefined) { env.MAIL_FROM = parsed.MAIL_FROM.trim(); process.env.MAIL_FROM = env.MAIL_FROM; }
       if (parsed.ALERT_EMAIL !== undefined) { env.ALERT_EMAIL = parsed.ALERT_EMAIL.trim(); process.env.ALERT_EMAIL = env.ALERT_EMAIL; }
-      if (parsed.RESEND_API_KEY !== undefined) { env.RESEND_API_KEY = parsed.RESEND_API_KEY.trim(); process.env.RESEND_API_KEY = env.RESEND_API_KEY; }
       if (parsed.AI_API_KEY !== undefined) { env.AI_API_KEY = parsed.AI_API_KEY.trim(); process.env.AI_API_KEY = env.AI_API_KEY; }
       if (parsed.AI_MODEL !== undefined) { env.AI_MODEL = parsed.AI_MODEL.trim(); process.env.AI_MODEL = env.AI_MODEL; }
     }
@@ -79,15 +87,21 @@ export async function refreshEnvFromDisk() {
 export async function getSettings() {
   await refreshEnvFromDisk();
   const serperKey = env.SERPER_API_KEY || env.SEARCHAPI_KEY;
+  const smtpUser = env.SMTP_USER || env.GMAIL_USER;
+  const smtpPass = env.SMTP_PASS || env.GMAIL_PASS;
   return {
     apifyApiUrl: env.APIFY_API_URL,
     apifyApiKey: env.APIFY_API_KEY,
     aiApiUrl: env.AI_API_URL,
     aiApiKey: env.AI_API_KEY,
     aiModel: env.AI_MODEL,
-    resendApiKey: env.RESEND_API_KEY,
-    gmailUser: env.GMAIL_USER,
-    gmailPass: env.GMAIL_PASS,
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT,
+    smtpUser: smtpUser,
+    smtpPass: smtpPass,
+    gmailUser: smtpUser,
+    gmailPass: smtpPass,
+    mailFrom: env.MAIL_FROM,
     alertEmail: env.ALERT_EMAIL,
     searchApiKey: serperKey,
     serperApiKey: serperKey,
@@ -96,8 +110,8 @@ export async function getSettings() {
     databaseUrl: env.DATABASE_URL,
     apifyConfigured: Boolean(env.APIFY_API_URL && env.APIFY_API_KEY),
     aiConfigured: Boolean(env.AI_API_URL && env.AI_API_KEY),
-    resendConfigured: Boolean(env.RESEND_API_KEY),
-    gmailConfigured: Boolean(env.GMAIL_USER && env.GMAIL_PASS),
+    smtpConfigured: Boolean(smtpUser && smtpPass),
+    gmailConfigured: Boolean(smtpUser && smtpPass),
     searchApiConfigured: Boolean(serperKey),
     serperApiConfigured: Boolean(serperKey),
     databaseConfigured: Boolean(env.DATABASE_URL),
@@ -110,9 +124,13 @@ export interface SettingsUpdatePayload {
   aiApiUrl?: string;
   aiApiKey?: string;
   aiModel?: string;
-  resendApiKey?: string;
+  smtpHost?: string;
+  smtpPort?: string;
+  smtpUser?: string;
+  smtpPass?: string;
   gmailUser?: string;
   gmailPass?: string;
+  mailFrom?: string;
   alertEmail?: string;
   searchApiKey?: string;
   serperApiKey?: string;
@@ -127,9 +145,13 @@ const PAYLOAD_TO_ENV_KEY_MAP: Record<string, string> = {
   aiApiUrl: "AI_API_URL",
   aiApiKey: "AI_API_KEY",
   aiModel: "AI_MODEL",
-  resendApiKey: "RESEND_API_KEY",
+  smtpHost: "SMTP_HOST",
+  smtpPort: "SMTP_PORT",
+  smtpUser: "SMTP_USER",
+  smtpPass: "SMTP_PASS",
   gmailUser: "GMAIL_USER",
   gmailPass: "GMAIL_PASS",
+  mailFrom: "MAIL_FROM",
   alertEmail: "ALERT_EMAIL",
   searchApiKey: "SERPER_API_KEY",
   serperApiKey: "SERPER_API_KEY",
@@ -159,17 +181,31 @@ export async function updateSettings(updates: SettingsUpdatePayload) {
     env.AI_MODEL = updates.aiModel.trim();
     process.env.AI_MODEL = env.AI_MODEL;
   }
-  if (updates.resendApiKey !== undefined) {
-    env.RESEND_API_KEY = updates.resendApiKey.trim();
-    process.env.RESEND_API_KEY = env.RESEND_API_KEY;
+  if (updates.smtpHost !== undefined) {
+    env.SMTP_HOST = updates.smtpHost.trim();
+    process.env.SMTP_HOST = env.SMTP_HOST;
   }
-  if (updates.gmailUser !== undefined) {
-    env.GMAIL_USER = updates.gmailUser.trim();
-    process.env.GMAIL_USER = env.GMAIL_USER;
+  if (updates.smtpPort !== undefined) {
+    env.SMTP_PORT = updates.smtpPort.trim();
+    process.env.SMTP_PORT = env.SMTP_PORT;
   }
-  if (updates.gmailPass !== undefined) {
-    env.GMAIL_PASS = updates.gmailPass.trim();
-    process.env.GMAIL_PASS = env.GMAIL_PASS;
+  const newSmtpUser = updates.smtpUser !== undefined ? updates.smtpUser.trim() : (updates.gmailUser !== undefined ? updates.gmailUser.trim() : undefined);
+  if (newSmtpUser !== undefined) {
+    env.SMTP_USER = newSmtpUser;
+    env.GMAIL_USER = newSmtpUser;
+    process.env.SMTP_USER = newSmtpUser;
+    process.env.GMAIL_USER = newSmtpUser;
+  }
+  const newSmtpPass = updates.smtpPass !== undefined ? updates.smtpPass.trim() : (updates.gmailPass !== undefined ? updates.gmailPass.trim() : undefined);
+  if (newSmtpPass !== undefined) {
+    env.SMTP_PASS = newSmtpPass;
+    env.GMAIL_PASS = newSmtpPass;
+    process.env.SMTP_PASS = newSmtpPass;
+    process.env.GMAIL_PASS = newSmtpPass;
+  }
+  if (updates.mailFrom !== undefined) {
+    env.MAIL_FROM = updates.mailFrom.trim();
+    process.env.MAIL_FROM = env.MAIL_FROM;
   }
   if (updates.alertEmail !== undefined) {
     env.ALERT_EMAIL = updates.alertEmail.trim();
@@ -212,19 +248,6 @@ export async function updateSettings(updates: SettingsUpdatePayload) {
   } catch (err) {
     console.warn("Could not save settings to database:", err);
   }
-  if (updates.databaseUrl !== undefined) {
-    env.DATABASE_URL = updates.databaseUrl.trim();
-    process.env.DATABASE_URL = env.DATABASE_URL;
-  }
-
-  // Also auto-extract token if user set APIFY_API_URL with token param and APIFY_API_KEY is empty
-  if (env.APIFY_API_URL && !env.APIFY_API_KEY) {
-    const extractedToken = env.APIFY_API_URL.match(/[?&]token=([^&]+)/)?.[1];
-    if (extractedToken) {
-      env.APIFY_API_KEY = extractedToken;
-      process.env.APIFY_API_KEY = extractedToken;
-    }
-  }
 
   persistToEnvFile({
     APIFY_API_URL: env.APIFY_API_URL,
@@ -232,9 +255,13 @@ export async function updateSettings(updates: SettingsUpdatePayload) {
     AI_API_URL: env.AI_API_URL,
     AI_API_KEY: env.AI_API_KEY,
     AI_MODEL: env.AI_MODEL,
-    RESEND_API_KEY: env.RESEND_API_KEY,
+    SMTP_HOST: env.SMTP_HOST,
+    SMTP_PORT: env.SMTP_PORT,
+    SMTP_USER: env.SMTP_USER,
+    SMTP_PASS: env.SMTP_PASS,
     GMAIL_USER: env.GMAIL_USER,
     GMAIL_PASS: env.GMAIL_PASS,
+    MAIL_FROM: env.MAIL_FROM,
     ALERT_EMAIL: env.ALERT_EMAIL,
     SERPER_API_KEY: env.SERPER_API_KEY,
     SEARCHAPI_KEY: env.SEARCHAPI_KEY,
