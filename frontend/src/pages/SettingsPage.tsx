@@ -94,17 +94,11 @@ export function SettingsPage() {
   }
 
   function handleModelSelect(model: string) {
-    let url = settings.aiApiUrl;
-    if (model.includes("mistral")) {
-      url = "https://api.mistral.ai/v1/chat/completions";
-    } else if (model.includes("gemini")) {
-      url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    } else if (model.includes("llama")) {
-      url = "https://api.groq.com/openai/v1/chat/completions";
-    } else if (model.includes("gpt")) {
-      url = "https://api.openai.com/v1/chat/completions";
-    }
-    setSettings((prev) => ({ ...prev, aiModel: model, aiApiUrl: url }));
+    setSettings((prev) => ({
+      ...prev,
+      aiModel: model,
+      aiApiUrl: "https://api.mistral.ai/v1/chat/completions",
+    }));
   }
 
   if (loading) {
@@ -157,7 +151,7 @@ export function SettingsPage() {
         <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              AI Sentiment Engine
+              Mistral AI Engine
             </div>
             <div style={{ fontWeight: 600, marginTop: 4, fontSize: 14 }}>
               {settings.aiConfigured ? "Ready" : "Incomplete"}
@@ -422,48 +416,24 @@ export function SettingsPage() {
         </div>
 
 
-        {/* AI Provider & Model Settings Card */}
+        {/* Mistral AI Sentiment Engine Card */}
         <div className="card settings-section">
           <div style={{ marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>AI Sentiment Model &amp; Key</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>🤖 Mistral AI Sentiment Engine</h3>
             <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-              Configure your LLM provider for sentiment analysis (Gemini / OpenAI API compatible).
+              Fast and accurate sentiment classification (POSITIVE, NEGATIVE, NEUTRAL) powered exclusively by Mistral AI.
             </span>
           </div>
 
           <div className="settings-form-group">
-            <label htmlFor="aiModel">AI Model</label>
-            <input
-              id="aiModel"
-              type="text"
-              value={settings.aiModel}
-              onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-              placeholder="e.g. gemini-3.5-flash-lite"
-            />
-            <div className="preset-chips" style={{ marginTop: 8 }}>
-              <span className="chip-label">Quick select:</span>
-              {["open-mistral-7b", "gemini-2.0-flash", "llama-3.1-8b-instant", "gpt-4o-mini"].map((model) => (
-                <button
-                  key={model}
-                  type="button"
-                  className={`preset-chip ${settings.aiModel === model ? "active" : ""}`}
-                  onClick={() => handleModelSelect(model)}
-                >
-                  {model}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="settings-form-group" style={{ marginTop: 16 }}>
-            <label htmlFor="aiApiKey">AI API Key</label>
+            <label htmlFor="aiApiKey">Mistral API Key (`MISTRAL_API_KEY`)</label>
             <div className="input-with-button">
               <input
                 id="aiApiKey"
                 type={showAiKey ? "text" : "password"}
                 value={settings.aiApiKey}
                 onChange={(e) => setSettings({ ...settings, aiApiKey: e.target.value })}
-                placeholder="Enter AI API Key"
+                placeholder="Enter Mistral API Key"
               />
               <button
                 type="button"
@@ -474,19 +444,31 @@ export function SettingsPage() {
                 {showAiKey ? "Hide" : "Show"}
               </button>
             </div>
-            <span className="field-hint">API key for Google Gemini or your custom OpenAI-compatible endpoint.</span>
+            <span className="field-hint">Your API key from console.mistral.ai.</span>
           </div>
 
           <div className="settings-form-group" style={{ marginTop: 16 }}>
-            <label htmlFor="aiApiUrl">AI API URL</label>
+            <label htmlFor="aiModel">Mistral Model</label>
             <input
-              id="aiApiUrl"
+              id="aiModel"
               type="text"
-              value={settings.aiApiUrl}
-              onChange={(e) => setSettings({ ...settings, aiApiUrl: e.target.value })}
-              placeholder="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+              value={settings.aiModel || "open-mistral-7b"}
+              onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
+              placeholder="open-mistral-7b"
             />
-            <span className="field-hint">Endpoint URL for OpenAI-compatible chat completions requests.</span>
+            <div className="preset-chips" style={{ marginTop: 8 }}>
+              <span className="chip-label">Quick select:</span>
+              {["open-mistral-7b", "mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"].map((model) => (
+                <button
+                  key={model}
+                  type="button"
+                  className={`preset-chip ${settings.aiModel === model ? "active" : ""}`}
+                  onClick={() => handleModelSelect(model)}
+                >
+                  {model}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

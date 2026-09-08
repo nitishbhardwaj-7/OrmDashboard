@@ -69,8 +69,8 @@ app.listen(env.PORT, () => {
   if (!env.APIFY_API_URL || !env.APIFY_API_KEY) {
     console.warn("⚠ Apify is not configured yet — set APIFY_API_URL and APIFY_API_KEY in backend/.env");
   }
-  if (!env.AI_API_URL || !env.AI_API_KEY) {
-    console.warn("⚠ AI sentiment provider is not configured yet — set AI_API_URL, AI_API_KEY and AI_MODEL in backend/.env");
+  if (!env.AI_API_KEY) {
+    console.warn("⚠ Mistral AI sentiment engine is not configured yet — set MISTRAL_API_KEY in Settings or backend/.env");
   }
 
   // Start background hourly cron for all platform keyword cards

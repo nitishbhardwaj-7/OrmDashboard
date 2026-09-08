@@ -53,16 +53,19 @@ async function callChatCompletions(text: string): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
+  const endpoint = env.AI_API_URL || "https://api.mistral.ai/v1/chat/completions";
+  const model = env.AI_MODEL || "open-mistral-7b";
+
   let response: Response;
   try {
-    response = await fetch(env.AI_API_URL, {
+    response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.AI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: env.AI_MODEL,
+        model,
         temperature: 0,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -73,25 +76,22 @@ async function callChatCompletions(text: string): Promise<string> {
     });
   } catch (err: any) {
     if (err?.name === "AbortError") {
-      throw new AiSentimentError("AI sentiment request timed out.");
+      throw new AiSentimentError("Mistral AI sentiment request timed out.");
     }
-    throw new AiSentimentError(`Could not reach AI API at the configured AI_API_URL: ${err?.message ?? err}`);
+    throw new AiSentimentError(`Could not reach Mistral AI API at ${endpoint}: ${err?.message ?? err}`);
   } finally {
     clearTimeout(timeout);
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new AiSentimentError("AI API rejected the request — check AI_API_KEY in Settings.", response.status);
+    throw new AiSentimentError("Mistral AI API rejected the request — check MISTRAL_API_KEY in Settings.", response.status);
   }
   if (response.status === 429) {
-    throw new AiSentimentError("AI API rate limit exceeded. Try again later.", 429);
+    throw new AiSentimentError("Mistral AI API rate limit exceeded. Try again in a few moments.", 429);
   }
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    if (response.status === 400 && (text.includes("API key") || text.includes("INVALID_ARGUMENT"))) {
-      throw new AiSentimentError("AI API Key is invalid or unconfigured — please set a valid AI Key in Settings.", 400);
-    }
-    throw new AiSentimentError(`AI API request failed with status ${response.status}: ${text.slice(0, 500)}`, response.status);
+    throw new AiSentimentError(`Mistral AI request failed with status ${response.status}: ${text.slice(0, 500)}`, response.status);
   }
 
   const json: any = await response.json().catch(() => null);

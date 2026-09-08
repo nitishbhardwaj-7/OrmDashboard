@@ -318,9 +318,9 @@ export function assertApifyConfigured() {
 }
 
 export function assertAiConfigured() {
-  if (!env.AI_API_URL || !env.AI_API_KEY) {
+  if (!env.AI_API_KEY) {
     throw new ConfigError(
-      "AI sentiment provider is not configured. Set AI_API_URL, AI_API_KEY and AI_MODEL in dashboard settings or backend/.env."
+      "Mistral AI is not configured. Set MISTRAL_API_KEY / AI_API_KEY in dashboard settings or backend/.env."
     );
   }
 }
