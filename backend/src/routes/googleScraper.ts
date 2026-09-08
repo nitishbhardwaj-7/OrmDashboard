@@ -21,15 +21,26 @@ let lastScanAdded = 0;
 
 const sseClients: Response[] = [];
 
-function safeParseDate(val: any): Date {
-  if (!val) return new Date();
-  if (val instanceof Date && !isNaN(val.getTime())) return val;
+function safeParseDate(val: any, snippetFallback?: string): Date {
+  let str = (typeof val === "string" ? val : "").trim();
 
-  const d = new Date(val);
-  if (!isNaN(d.getTime())) return d;
+  // If no direct date provided, check for date prefix in snippet (e.g. "Sep 5, 2024 — ...", "3 days ago — ...")
+  if (!str && snippetFallback) {
+    const prefixMatch = snippetFallback.match(/^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*[—\-–\.]/);
+    if (prefixMatch) {
+      str = prefixMatch[1].trim();
+    } else {
+      const relPrefixMatch = snippetFallback.match(/^(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\s*[—\-–\.]/i);
+      if (relPrefixMatch) {
+        str = relPrefixMatch[1].trim();
+      }
+    }
+  }
 
-  const str = String(val).toLowerCase().trim();
-  const relMatch = str.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
+  if (!str) return new Date();
+
+  // Handle relative dates like "1 year ago", "3 days ago", "2 months ago"
+  const relMatch = str.toLowerCase().match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
   if (relMatch) {
     const num = parseInt(relMatch[1], 10);
     const unit = relMatch[2];
@@ -42,6 +53,11 @@ function safeParseDate(val: any): Date {
     else if (unit === "month") now.setMonth(now.getMonth() - num);
     else if (unit === "year") now.setFullYear(now.getFullYear() - num);
     return now;
+  }
+
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
   }
 
   return new Date();
@@ -303,7 +319,7 @@ export async function autoIngestGoogleItems(items: any[], keyword?: string) {
           text: `${item.title || ''}\n\n${item.snippet || ''}`.trim(),
           url: item.url || null,
           author: item.domain || null,
-          publishedAt: safeParseDate(item.published),
+          publishedAt: safeParseDate(item.published, item.snippet),
           rawItem: JSON.stringify(item),
           status: ProcessingStatus.RECEIVED,
         },

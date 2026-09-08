@@ -808,11 +808,21 @@ def extract_results(engine, payload):
         if not link:
             continue
         snippet = it.get("snippet") or it.get("description") or ""
+        raw_date = it.get("date") or it.get("published_time") or it.get("iso_date") or it.get("publishedDate") or ""
+        if not raw_date and snippet:
+            m_date = re.match(r"^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*[—\-–\.]", snippet)
+            if m_date:
+                raw_date = m_date.group(1).strip()
+            else:
+                m_rel = re.match(r"^(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\s*[—\-–\.]", snippet, re.I)
+                if m_rel:
+                    raw_date = m_rel.group(1).strip()
+
         out.append({
             "url": link,
             "title": it.get("title") or "(no title)",
             "snippet": snippet[:1000],
-            "published": it.get("date") or it.get("published_time") or it.get("iso_date") or "",
+            "published": raw_date,
             "extra": it.get("source"),
         })
     return out

@@ -6,8 +6,51 @@ import hashlib
 import argparse
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from playwright.sync_api import sync_playwright
+
+def parse_serp_date(raw: str, snippet: str = "") -> str:
+    raw_str = (raw or "").strip()
+    if not raw_str and snippet:
+        m = re.match(r"^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*[—\-–\.]", snippet)
+        if m:
+            raw_str = m.group(1).strip()
+        else:
+            m_rel = re.match(r"^(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\s*[—\-–\.]", snippet, re.I)
+            if m_rel:
+                raw_str = m_rel.group(1).strip()
+
+    if not raw_str:
+        return datetime.now(timezone.utc).isoformat()
+
+    rel = re.match(r"^(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", raw_str, re.I)
+    if rel:
+        num = int(rel.group(1))
+        unit = rel.group(2).lower()
+        now = datetime.now(timezone.utc)
+        if unit == "second": now -= timedelta(seconds=num)
+        elif unit == "minute": now -= timedelta(minutes=num)
+        elif unit == "hour": now -= timedelta(hours=num)
+        elif unit == "day": now -= timedelta(days=num)
+        elif unit == "week": now -= timedelta(weeks=num)
+        elif unit == "month": now -= timedelta(days=num * 30)
+        elif unit == "year": now -= timedelta(days=num * 365)
+        return now.isoformat()
+
+    for fmt in ("%b %d, %Y", "%B %d, %Y", "%b %d %Y", "%B %d %Y", "%d %b %Y", "%d %B %Y", "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            dt = datetime.strptime(raw_str, fmt)
+            return dt.replace(tzinfo=timezone.utc).isoformat()
+        except Exception:
+            pass
+
+    try:
+        dt = datetime.fromisoformat(raw_str.replace("Z", "+00:00"))
+        return dt.isoformat()
+    except Exception:
+        pass
+
+    return datetime.now(timezone.utc).isoformat()
 
 # Force UTF-8 output on Windows stdout & stderr
 if hasattr(sys.stdout, "reconfigure"):
@@ -162,7 +205,7 @@ def fetch_serper_linkedin_posts(keyword: str, limit: int) -> list:
                         "url": link,
                         "author": author_name,
                         "authorUrl": link if "/in/" in link or "/company/" in link else None,
-                        "publishedAt": datetime.now(timezone.utc).isoformat(),
+                        "publishedAt": parse_serp_date(org.get("date"), snippet),
                         "likes": 0,
                         "shares": 0,
                         "commentsCount": 0,
