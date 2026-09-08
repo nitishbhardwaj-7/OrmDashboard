@@ -1,6 +1,65 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { api } from "../api/client";
 import type { GoogleMention } from "../api/types";
+import { DateRangeSelector, getDateBounds, type DateRange } from "../components/DateRangeSelector";
+
+function parseDateString(raw: string): Date | null {
+  if (!raw) return null;
+  const str = raw.trim();
+
+  // Handle relative dates like "2 hours ago", "3 days ago", "1 month ago"
+  const relMatch = str.toLowerCase().match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/);
+  if (relMatch) {
+    const num = parseInt(relMatch[1], 10);
+    const unit = relMatch[2];
+    const now = new Date();
+    if (unit === "second") now.setSeconds(now.getSeconds() - num);
+    else if (unit === "minute") now.setMinutes(now.getMinutes() - num);
+    else if (unit === "hour") now.setHours(now.getHours() - num);
+    else if (unit === "day") now.setDate(now.getDate() - num);
+    else if (unit === "week") now.setDate(now.getDate() - num * 7);
+    else if (unit === "month") now.setMonth(now.getMonth() - num);
+    else if (unit === "year") now.setFullYear(now.getFullYear() - num);
+    return now;
+  }
+
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  return null;
+}
+
+function parseMentionDate(item: GoogleMention): Date | null {
+  // 1. Prioritize the actual post/article publish date from Google / Serper
+  if (item.published && item.published.trim()) {
+    const d = parseDateString(item.published);
+    if (d) return d;
+  }
+
+  // 2. Extract date prefix from snippet if Google embedded it (e.g. "Sep 5, 2026 — ...", "3 days ago — ...")
+  if (item.snippet) {
+    const datePrefixMatch = item.snippet.match(/^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s*[—\-–\.]/);
+    if (datePrefixMatch) {
+      const d = parseDateString(datePrefixMatch[1]);
+      if (d) return d;
+    }
+    const relPrefixMatch = item.snippet.match(/^(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)\s*[—\-–\.]/i);
+    if (relPrefixMatch) {
+      const d = parseDateString(relPrefixMatch[1]);
+      if (d) return d;
+    }
+  }
+
+  // 3. Fallback to when the item was first scraped/discovered
+  if (item.first_seen) {
+    const d = new Date(item.first_seen);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
 
 export function GoogleScraperPage() {
   const [mentions, setMentions] = useState<GoogleMention[]>([]);
@@ -13,6 +72,7 @@ export function GoogleScraperPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [customKeyword, setCustomKeyword] = useState("");
   const [engine, setEngine] = useState("all");
+  const [dateRange, setDateRange] = useState<DateRange>({});
 
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -37,7 +97,7 @@ export function GoogleScraperPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const res = await api.getGoogleMentions(platform, searchQuery);
+      const res = await api.getGoogleMentions("All", "");
       setMentions(res.mentions || []);
       setCounts(res.counts || {});
       setTotal(res.total || 0);
@@ -52,15 +112,7 @@ export function GoogleScraperPage() {
 
   useEffect(() => {
     loadData();
-  }, [platform]);
-
-  // Handle Search Input Debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadData();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, []);
 
   // SSE Stream Connection
   useEffect(() => {
@@ -193,14 +245,14 @@ export function GoogleScraperPage() {
   }
 
   async function handleIngestAllFiltered() {
-    if (mentions.length === 0) return;
+    if (filteredMentions.length === 0) return;
     try {
       setIngestingId("ALL");
       const res = await api.ingestGoogleMentions({
-        items: mentions,
+        items: filteredMentions,
         keyword: customKeyword.trim() || brand,
       });
-      showToast(res.message || `Ingested ${mentions.length} mention(s) into ORM Dashboard!`, "ok");
+      showToast(res.message || `Ingested ${filteredMentions.length} mention(s) into ORM Dashboard!`, "ok");
     } catch (err: any) {
       showToast(err?.message || "Failed to ingest mentions", "err");
     } finally {
@@ -208,11 +260,57 @@ export function GoogleScraperPage() {
     }
   }
 
-  const platformList = ["All", ...Object.keys(counts).sort((a, b) => (counts[b] || 0) - (counts[a] || 0))];
-  // Ensure default standard platforms exist in chips if not present
-  ["News", "Reddit", "YouTube", "Reviews", "Directory", "X", "LinkedIn", "Facebook", "Blind", "Medium", "Quora", "Web"].forEach((p) => {
-    if (!platformList.includes(p)) platformList.push(p);
-  });
+  // Filter mentions by Date Range, Search Query, and Platform
+  const dateFilteredMentions = useMemo(() => {
+    const { dateFrom, dateTo } = getDateBounds(dateRange);
+    if (!dateFrom && !dateTo) return mentions;
+    const fromTime = dateFrom ? new Date(dateFrom).getTime() : 0;
+    const toTime = dateTo ? new Date(dateTo).getTime() : Infinity;
+    return mentions.filter((m) => {
+      const itemDate = parseMentionDate(m);
+      if (!itemDate) return true;
+      const t = itemDate.getTime();
+      return t >= fromTime && t <= toTime;
+    });
+  }, [mentions, dateRange]);
+
+  const filteredMentions = useMemo(() => {
+    let list = dateFilteredMentions;
+
+    if (platform !== "All") {
+      list = list.filter((m) => (m.platform || "Web").toLowerCase() === platform.toLowerCase());
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (m) =>
+          (m.title && m.title.toLowerCase().includes(q)) ||
+          (m.snippet && m.snippet.toLowerCase().includes(q)) ||
+          (m.domain && m.domain.toLowerCase().includes(q)) ||
+          (m.query && m.query.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [dateFilteredMentions, platform, searchQuery]);
+
+  const dynamicCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    dateFilteredMentions.forEach((m) => {
+      const p = m.platform || "Web";
+      map[p] = (map[p] || 0) + 1;
+    });
+    return map;
+  }, [dateFilteredMentions]);
+
+  const platformList = useMemo(() => {
+    const list = ["All", ...Object.keys(dynamicCounts).sort((a, b) => (dynamicCounts[b] || 0) - (dynamicCounts[a] || 0))];
+    ["News", "Reddit", "YouTube", "Reviews", "Directory", "X", "LinkedIn", "Facebook", "Blind", "Medium", "Quora", "Web"].forEach((p) => {
+      if (!list.includes(p)) list.push(p);
+    });
+    return list;
+  }, [dynamicCounts]);
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", paddingBottom: 40 }}>
@@ -279,10 +377,15 @@ export function GoogleScraperPage() {
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{total}</div>
-          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Total Mentions Tracked</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{dateFilteredMentions.length}</div>
+          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+            {dateRange.startMonth || dateRange.endMonth || dateRange.presetDays ? "Mentions in Range" : "Total Mentions Tracked"}
+          </div>
         </div>
       </header>
+
+      {/* Date Range Selector matching Dashboard Overview */}
+      <DateRangeSelector value={dateRange} onChange={setDateRange} />
 
       {/* Controls Card */}
       <div className="card" style={{ padding: 20, marginBottom: 24 }}>
@@ -383,7 +486,7 @@ export function GoogleScraperPage() {
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {platformList.map((p) => {
-            const count = p === "All" ? total : counts[p] || 0;
+            const count = p === "All" ? dateFilteredMentions.length : dynamicCounts[p] || 0;
             const isActive = platform === p;
             return (
               <button
@@ -444,16 +547,16 @@ export function GoogleScraperPage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 13, color: "var(--text-dim)" }}>
-            Showing {shown} of {total} items
+            Showing {filteredMentions.length} of {dateFilteredMentions.length} items {mentions.length !== dateFilteredMentions.length && `(Total: ${mentions.length})`}
           </span>
-          {mentions.length > 0 && (
+          {filteredMentions.length > 0 && (
             <button
               onClick={handleIngestAllFiltered}
               disabled={ingestingId === "ALL"}
               className="btn btn-secondary"
               style={{ fontSize: 12, padding: "8px 14px" }}
             >
-              {ingestingId === "ALL" ? "Ingesting..." : "📥 Ingest Filtered to ORM DB"}
+              {ingestingId === "ALL" ? "Ingesting..." : `📥 Ingest Filtered (${filteredMentions.length}) to ORM DB`}
             </button>
           )}
         </div>
@@ -462,14 +565,14 @@ export function GoogleScraperPage() {
       {/* Mentions List */}
       {loading ? (
         <div style={{ textAlign: "center", padding: 60, color: "var(--text-dim)" }}>Loading mentions...</div>
-      ) : mentions.length === 0 ? (
+      ) : filteredMentions.length === 0 ? (
         <div className="card" style={{ padding: 50, textAlign: "center", color: "var(--text-dim)" }}>
-          <h3>No mentions match this filter</h3>
-          <p style={{ marginTop: 8 }}>Try clearing search query or running a Google scan above.</p>
+          <h3>No mentions match this filter / date range</h3>
+          <p style={{ marginTop: 8 }}>Try adjusting the date range, clearing search query, or running a Google scan above.</p>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {mentions.map((item) => {
+          {filteredMentions.map((item) => {
             const isNew = sessionNewIds.has(item.id);
             const isIngesting = ingestingId === item.id;
 

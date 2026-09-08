@@ -17,19 +17,14 @@ import { purgeSeedKeyword } from "./services/queryService";
 
 const app = express();
 
-// Auto sync Prisma schema on server startup if DATABASE_URL is configured
-const dbUrl = process.env.DATABASE_URL || "";
-if (dbUrl.startsWith("postgresql://") || dbUrl.startsWith("postgres://")) {
-  try {
-    console.log("Ensuring Prisma database schema is in sync...");
-    execSync("npx prisma db push --skip-generate", { stdio: "inherit", env: process.env });
-    purgeSeedKeyword().catch(() => {});
-    syncCompetitorFlags().catch(() => {});
-  } catch (err: any) {
-    console.warn("Notice: Prisma DB sync notice:", err?.message || err);
-  }
-} else {
-  console.warn("Notice: DATABASE_URL is missing or invalid in environment variables. Set DATABASE_URL starting with postgresql:// in Railway/settings.");
+// Auto sync Prisma schema on server startup, purge seed keyword & sync competitor flags
+try {
+  console.log("Ensuring Prisma database schema is in sync...");
+  execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+  purgeSeedKeyword().catch(() => {});
+  syncCompetitorFlags().catch(() => {});
+} catch (err: any) {
+  console.warn("Notice: Prisma DB sync notice:", err?.message || err);
 }
 
 app.use(cors({

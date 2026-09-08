@@ -50,78 +50,56 @@ export async function classifySentiment(text: string): Promise<SentimentResult> 
 }
 
 async function callChatCompletions(text: string): Promise<string> {
-  const modelsToTry = Array.from(
-    new Set([
-      env.AI_MODEL,
-      "google/gemini-2.0-flash-001",
-      "google/gemini-flash-1.5",
-      "openai/gpt-4o-mini",
-      "mistralai/mistral-7b-instruct",
-    ])
-  ).filter(Boolean);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  let lastError: any = null;
-
-  for (const model of modelsToTry) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-
-    try {
-      const response = await fetch(env.AI_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.AI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: text.slice(0, 4000) },
-          ],
-        }),
-        signal: controller.signal,
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        throw new AiSentimentError("AI API rejected the request — check AI_API_KEY in Settings.", response.status);
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        if (
-          [503, 502, 500, 429, 404].includes(response.status) ||
-          errorText.includes("No capacity available") ||
-          errorText.includes("UNAVAILABLE")
-        ) {
-          console.warn(`Model '${model}' returned status ${response.status} (${errorText.slice(0, 80)}). Trying fallback model...`);
-          lastError = new AiSentimentError(`AI API model ${model} status ${response.status}: ${errorText.slice(0, 200)}`, response.status);
-          continue;
-        }
-        if (response.status === 400 && (errorText.includes("API key") || errorText.includes("INVALID_ARGUMENT"))) {
-          throw new AiSentimentError("AI API Key is invalid or unconfigured — please set a valid AI Key in Settings.", 400);
-        }
-        throw new AiSentimentError(`AI API request failed with status ${response.status}: ${errorText.slice(0, 500)}`, response.status);
-      }
-
-      const json: any = await response.json().catch(() => null);
-      const content = json?.choices?.[0]?.message?.content;
-      if (typeof content !== "string") {
-        throw new AiSentimentError("AI API response did not contain the expected choices[0].message.content field.");
-      }
-      return content;
-    } catch (err: any) {
-      if (err instanceof AiSentimentError && (err.status === 401 || err.status === 403 || err.status === 400)) {
-        throw err;
-      }
-      lastError = err;
-    } finally {
-      clearTimeout(timeout);
+  let response: Response;
+  try {
+    response = await fetch(env.AI_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.AI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: env.AI_MODEL,
+        temperature: 0,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: text.slice(0, 4000) },
+        ],
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new AiSentimentError("AI sentiment request timed out.");
     }
+    throw new AiSentimentError(`Could not reach AI API at the configured AI_API_URL: ${err?.message ?? err}`);
+  } finally {
+    clearTimeout(timeout);
   }
 
-  throw lastError || new AiSentimentError("AI sentiment analysis failed across all attempted fallback models.");
+  if (response.status === 401 || response.status === 403) {
+    throw new AiSentimentError("AI API rejected the request — check AI_API_KEY in Settings.", response.status);
+  }
+  if (response.status === 429) {
+    throw new AiSentimentError("AI API rate limit exceeded. Try again later.", 429);
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    if (response.status === 400 && (text.includes("API key") || text.includes("INVALID_ARGUMENT"))) {
+      throw new AiSentimentError("AI API Key is invalid or unconfigured — please set a valid AI Key in Settings.", 400);
+    }
+    throw new AiSentimentError(`AI API request failed with status ${response.status}: ${text.slice(0, 500)}`, response.status);
+  }
+
+  const json: any = await response.json().catch(() => null);
+  const content = json?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new AiSentimentError("AI API response did not contain the expected choices[0].message.content field.");
+  }
+  return content;
 }
 
 function parseModelOutput(raw: string): SentimentResult {

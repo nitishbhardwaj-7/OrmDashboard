@@ -8,7 +8,7 @@ import type {
   SentimentOverTimeRow,
 } from "../api/types";
 import { StatCard } from "../components/StatCard";
-import { DateRangeSelector, type DateRange } from "../components/DateRangeSelector";
+import { DateRangeSelector, getDateBounds, type DateRange } from "../components/DateRangeSelector";
 import {
   DistributionPieChart,
   SentimentOverTimeChart,
@@ -26,25 +26,6 @@ export function OverviewPage() {
   const [keywords, setKeywords] = useState<KeywordSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Convert StartMonth / EndMonth to ISO date bounds
-  function getDateBounds(dr: DateRange) {
-    let dateFrom: string | undefined = undefined;
-    let dateTo: string | undefined = undefined;
-
-    if (dr.startMonth) {
-      const [y, m] = dr.startMonth.split("-").map(Number);
-      dateFrom = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0)).toISOString();
-    }
-    if (dr.endMonth) {
-      const [y, m] = dr.endMonth.split("-").map(Number);
-      // End of month
-      const lastDay = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
-      dateTo = lastDay.toISOString();
-    }
-
-    return { dateFrom, dateTo };
-  }
 
   async function loadData(platform = selectedPlatform, dr = dateRange) {
     setLoading(true);
