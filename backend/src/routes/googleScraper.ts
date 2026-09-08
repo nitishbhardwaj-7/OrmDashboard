@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { buildSourceKey } from "../lib/hash";
 import { ProcessingStatus } from "../types/status";
 import { analyzePost } from "../services/pipelineService";
+import { generateGoogleExcelReport, GoogleExportItem, GoogleExcelExportOptions } from "../services/excelService";
 
 export const googleScraperRouter = Router();
 
@@ -351,3 +352,86 @@ googleScraperRouter.post("/ingest", async (req: Request, res: Response, next: Ne
     next(err);
   }
 });
+
+// 6) Export Google Mentions to Multi-Tab Excel
+googleScraperRouter.post("/export-excel", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { items, filters } = req.body ?? {};
+    let exportItems: GoogleExportItem[] = Array.isArray(items) ? items : [];
+
+    // If no items passed, fetch from Python scraper backend with platform / query filters
+    if (exportItems.length === 0) {
+      const platform = (filters?.platform as string) || "All";
+      const query = (filters?.query as string) || (filters?.q as string) || "";
+      const limit = Number(filters?.limit) || 5000;
+
+      const result: any = await runPythonCommand([
+        "--action", "mentions",
+        "--platform", platform,
+        "--query", query,
+        "--limit", String(limit),
+      ]);
+
+      exportItems = Array.isArray(result?.mentions) ? result.mentions : [];
+    }
+
+    const exportOptions: GoogleExcelExportOptions = {
+      platform: filters?.platform || "All",
+      dateRangeLabel: filters?.dateRangeLabel,
+      dateFrom: filters?.dateFrom,
+      dateTo: filters?.dateTo,
+      query: filters?.query,
+    };
+
+    const buffer = await generateGoogleExcelReport(exportItems, exportOptions);
+
+    const safePlat = (filters?.platform || "All").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `Google_Mentions_${safePlat}_${timestamp}.xlsx`;
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+googleScraperRouter.get("/export-excel", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const platform = (req.query.platform as string) || "All";
+    const query = (req.query.q as string) || (req.query.query as string) || "";
+    const dateRangeLabel = req.query.dateRangeLabel ? String(req.query.dateRangeLabel) : undefined;
+    const dateFrom = req.query.dateFrom ? String(req.query.dateFrom) : undefined;
+    const dateTo = req.query.dateTo ? String(req.query.dateTo) : undefined;
+    const limit = Number(req.query.limit) || 5000;
+
+    const result: any = await runPythonCommand([
+      "--action", "mentions",
+      "--platform", platform,
+      "--query", query,
+      "--limit", String(limit),
+    ]);
+
+    const exportItems: GoogleExportItem[] = Array.isArray(result?.mentions) ? result.mentions : [];
+
+    const buffer = await generateGoogleExcelReport(exportItems, {
+      platform,
+      dateRangeLabel,
+      dateFrom,
+      dateTo,
+      query,
+    });
+
+    const safePlat = platform.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `Google_Mentions_${safePlat}_${timestamp}.xlsx`;
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+

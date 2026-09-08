@@ -80,8 +80,24 @@ export function GoogleScraperPage() {
 
   const [sessionNewIds, setSessionNewIds] = useState<Set<string>>(new Set());
   const [ingestingId, setIngestingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const terminalRef = useRef<HTMLPreElement>(null);
+
+  const dateRangeLabel = useMemo(() => {
+    if (dateRange.presetDays) {
+      if (dateRange.presetDays === 7) return "Last 7 Days";
+      if (dateRange.presetDays === 30) return "Last 30 Days";
+      if (dateRange.presetDays === 90) return "Last 90 Days";
+      if (dateRange.presetDays === 180) return "Last 6 Months";
+      if (dateRange.presetDays === 365) return "Last 1 Year";
+      return `Last ${dateRange.presetDays} Days`;
+    }
+    if (dateRange.startMonth || dateRange.endMonth) {
+      return `${dateRange.startMonth || "Start"} to ${dateRange.endMonth || "Present"}`;
+    }
+    return "All Time";
+  }, [dateRange]);
 
   // Auto-scroll terminal log
   useEffect(() => {
@@ -243,6 +259,33 @@ export function GoogleScraperPage() {
     }
   }
 
+  async function handleExportExcel() {
+    if (filteredMentions.length === 0) {
+      showToast("No mentions to export.", "err");
+      return;
+    }
+    try {
+      setExporting(true);
+      const { dateFrom, dateTo } = getDateBounds(dateRange);
+      await api.exportGoogleToExcel({
+        items: filteredMentions,
+        filters: {
+          platform,
+          dateRangeLabel,
+          dateFrom,
+          dateTo,
+          query: searchQuery.trim() || undefined,
+        },
+      });
+      showToast(`Exported ${filteredMentions.length} mention(s) to Excel spreadsheet!`, "ok");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to export Excel report", "err");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+
   // Filter mentions by Date Range, Search Query, and Platform
   const dateFilteredMentions = useMemo(() => {
     const { dateFrom, dateTo } = getDateBounds(dateRange);
@@ -359,11 +402,40 @@ export function GoogleScraperPage() {
             Search &amp; track brand mentions from Google Web &amp; Google News using Serper.dev API (`SERPER_API_KEY`). Every scrape is automatically ingested and sentiment-analyzed by Mistral AI. Background cron runs automatically every 1 hour.
           </p>
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>{dateFilteredMentions.length}</div>
           <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
             {dateRange.startMonth || dateRange.endMonth || dateRange.presetDays ? "Mentions in Range" : "Total Mentions Tracked"}
           </div>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exporting || filteredMentions.length === 0}
+            className="btn btn-secondary"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "6px 14px",
+              marginTop: 4,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: filteredMentions.length === 0 ? "not-allowed" : "pointer",
+              background: "rgba(34, 197, 94, 0.12)",
+              color: "#4ade80",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+            }}
+            title={`Download multi-tab Excel spreadsheet for ${platform === "All" ? "all platforms" : platform + " tab"} (${dateRangeLabel})`}
+          >
+            {exporting ? (
+              <>
+                <span className="spinner" style={{ width: 12, height: 12 }} />
+                Exporting...
+              </>
+            ) : (
+              <>📊 Export Excel ({filteredMentions.length})</>
+            )}
+          </button>
         </div>
       </header>
 
@@ -528,10 +600,38 @@ export function GoogleScraperPage() {
           />
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, color: "var(--text-dim)" }}>
             Showing {filteredMentions.length} of {dateFilteredMentions.length} items {mentions.length !== dateFilteredMentions.length && `(Total: ${mentions.length})`}
           </span>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exporting || filteredMentions.length === 0}
+            className="btn btn-secondary"
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "8px 14px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: filteredMentions.length === 0 ? "not-allowed" : "pointer",
+              background: "rgba(34, 197, 94, 0.12)",
+              color: "#4ade80",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+            }}
+            title={`Download Excel spreadsheet for ${platform === "All" ? "all platforms" : platform + " tab"} (${dateRangeLabel})`}
+          >
+            {exporting ? (
+              <>
+                <span className="spinner" style={{ width: 12, height: 12 }} />
+                Exporting...
+              </>
+            ) : (
+              <>📊 Export Excel ({filteredMentions.length})</>
+            )}
+          </button>
           {filteredMentions.length > 0 && (
             <button
               onClick={handleIngestAllFiltered}

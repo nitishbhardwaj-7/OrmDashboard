@@ -435,3 +435,244 @@ function formatHeaderRow(row: ExcelJS.Row, bgArgb: string) {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgArgb } };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Google Scraper Excel Export Support
+// ---------------------------------------------------------------------------
+
+export interface GoogleExportItem {
+  id?: string;
+  title?: string;
+  snippet?: string | null;
+  domain?: string | null;
+  platform?: string | null;
+  engine?: string | null;
+  query?: string | null;
+  published?: string | null;
+  first_seen?: string | null;
+  url: string;
+}
+
+export interface GoogleExcelExportOptions {
+  platform?: string;
+  dateRangeLabel?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  query?: string;
+}
+
+export async function generateGoogleExcelReport(
+  items: GoogleExportItem[] = [],
+  options: GoogleExcelExportOptions = {}
+): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "ORM Reputation Management System - Google Scraper";
+  workbook.created = new Date();
+
+  // 1. Overview & Summary Sheet
+  buildGoogleSummarySheet(workbook, items, options);
+
+  const selectedPlatform = (options.platform || "All").trim();
+  const isAllPlatforms = selectedPlatform.toLowerCase() === "all";
+
+  if (isAllPlatforms) {
+    // Determine unique platforms with counts
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      const p = (item.platform || "Web").trim();
+      counts[p] = (counts[p] || 0) + 1;
+    }
+
+    const uniquePlatforms = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+
+    // Platform-specific tabs
+    for (const plat of uniquePlatforms) {
+      const platItems = items.filter((i) => (i.platform || "Web").trim() === plat);
+      const tabName = plat.slice(0, 31);
+      buildGoogleDataSheet(workbook, tabName, platItems);
+    }
+
+    // Master All Mentions Sheet
+    buildGoogleDataSheet(workbook, "All Mentions", items);
+  } else {
+    // Only the filtered platform tab
+    const tabName = `${selectedPlatform} Mentions`.slice(0, 31);
+    buildGoogleDataSheet(workbook, tabName, items);
+  }
+
+  const arrayBuffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+function buildGoogleSummarySheet(
+  workbook: ExcelJS.Workbook,
+  items: GoogleExportItem[],
+  options: GoogleExcelExportOptions
+) {
+  const sheet = workbook.addWorksheet("Overview & Summary", {
+    views: [{ showGridLines: true }],
+  });
+
+  sheet.columns = [
+    { width: 4 },
+    { width: 28 },
+    { width: 20 },
+    { width: 20 },
+    { width: 22 },
+    { width: 22 },
+  ];
+
+  // Header Title Banner
+  sheet.mergeCells("B2:F3");
+  const titleCell = sheet.getCell("B2");
+  titleCell.value = "🔍 Google Brand Monitor & SERP Mentions Report";
+  titleCell.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+  titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+
+  // Filter Subtitle Info
+  sheet.mergeCells("B4:F4");
+  const subCell = sheet.getCell("B4");
+  const tabInfo = (options.platform || "All").toUpperCase();
+  const dateInfo = options.dateRangeLabel || (options.dateFrom || options.dateTo ? `${options.dateFrom || "Start"} to ${options.dateTo || "Now"}` : "ALL TIME");
+  const queryInfo = options.query ? ` | Search Filter: "${options.query}"` : "";
+  subCell.value = `Tab: ${tabInfo} | Date Filter: ${dateInfo}${queryInfo} | Generated: ${new Date().toLocaleString()} | Total Items: ${items.length}`;
+  subCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF64748B" } };
+
+  // Metrics computation
+  const uniqueDomains = new Set(items.map((i) => i.domain).filter(Boolean)).size;
+  const uniquePlatforms = new Set(items.map((i) => i.platform || "Web").filter(Boolean)).size;
+  const uniqueQueries = new Set(items.map((i) => i.query).filter(Boolean)).size;
+
+  // KPI Metrics Table Header
+  const summaryHeaderRow = sheet.getRow(6);
+  summaryHeaderRow.values = ["", "Metric", "Total Mentions", "Unique Domains", "Platform Categories", "Queries Tracked"];
+  formatHeaderRow(summaryHeaderRow, "FF1E293B");
+
+  const rowData = ["", "Google SERP Mentions", items.length, uniqueDomains, uniquePlatforms, uniqueQueries];
+  const metricRow = sheet.getRow(7);
+  metricRow.values = rowData;
+  metricRow.alignment = { vertical: "middle", horizontal: "center" };
+  sheet.getCell("B7").alignment = { vertical: "middle", horizontal: "left" };
+  metricRow.font = { name: "Segoe UI", size: 11, bold: true };
+  sheet.getCell("C7").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+
+  // Platform Breakdown Section Header
+  sheet.getCell("B10").value = "Platform Breakdown & Distribution";
+  sheet.getCell("B10").font = { name: "Segoe UI", size: 13, bold: true, color: { argb: "FF0F172A" } };
+
+  const platHeaderRow = sheet.getRow(12);
+  platHeaderRow.values = ["", "Platform", "Mentions Count", "% Share", "Top Domain", "Sample Engine"];
+  formatHeaderRow(platHeaderRow, "FF334155");
+
+  const platformCounts: Record<string, { count: number; domains: Record<string, number>; engines: Record<string, number> }> = {};
+  for (const item of items) {
+    const p = (item.platform || "Web").trim();
+    if (!platformCounts[p]) platformCounts[p] = { count: 0, domains: {}, engines: {} };
+    platformCounts[p].count += 1;
+    if (item.domain) platformCounts[p].domains[item.domain] = (platformCounts[p].domains[item.domain] || 0) + 1;
+    if (item.engine) platformCounts[p].engines[item.engine] = (platformCounts[p].engines[item.engine] || 0) + 1;
+  }
+
+  const sortedPlatforms = Object.keys(platformCounts).sort((a, b) => platformCounts[b].count - platformCounts[a].count);
+  sortedPlatforms.forEach((p, idx) => {
+    const data = platformCounts[p];
+    const pct = items.length > 0 ? `${((data.count / items.length) * 100).toFixed(1)}%` : "0%";
+    const topDomain = Object.keys(data.domains).sort((a, b) => data.domains[b] - data.domains[a])[0] || "N/A";
+    const topEngine = Object.keys(data.engines).sort((a, b) => data.engines[b] - data.engines[a])[0] || "Serper";
+
+    const rowIndex = 13 + idx;
+    const row = sheet.getRow(rowIndex);
+    row.values = ["", p, data.count, pct, topDomain, topEngine];
+    row.font = { name: "Segoe UI", size: 10 };
+    row.alignment = { vertical: "middle", horizontal: "center" };
+    sheet.getCell(`B${rowIndex}`).alignment = { vertical: "middle", horizontal: "left" };
+    sheet.getCell(`B${rowIndex}`).font = { name: "Segoe UI", size: 10, bold: true };
+
+    if (idx % 2 === 1) {
+      for (let c = 2; c <= 6; c++) {
+        sheet.getCell(rowIndex, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+      }
+    }
+  });
+}
+
+function buildGoogleDataSheet(workbook: ExcelJS.Workbook, sheetName: string, items: GoogleExportItem[]) {
+  const sheet = workbook.addWorksheet(sheetName, {
+    views: [{ showGridLines: true, state: "frozen", ySplit: 1 }],
+  });
+
+  sheet.columns = [
+    { header: "Platform", key: "platform", width: 14 },
+    { header: "Domain", key: "domain", width: 22 },
+    { header: "Query / Keyword", key: "query", width: 20 },
+    { header: "Title / Headline", key: "title", width: 40 },
+    { header: "Snippet / Content", key: "snippet", width: 60 },
+    { header: "Published Date", key: "published", width: 20 },
+    { header: "Search Engine", key: "engine", width: 16 },
+    { header: "First Discovered", key: "first_seen", width: 20 },
+    { header: "Direct Web Link", key: "url", width: 28 },
+  ];
+
+  const headerRow = sheet.getRow(1);
+  formatHeaderRow(headerRow, "FF1E293B");
+  headerRow.height = 28;
+
+  if (items.length === 0) {
+    const emptyRow = sheet.getRow(2);
+    emptyRow.values = ["No mentions found matching the active filter criteria."];
+    sheet.mergeCells("A2:I2");
+    emptyRow.font = { name: "Segoe UI", size: 11, italic: true, color: { argb: "FF94A3B8" } };
+    emptyRow.alignment = { vertical: "middle", horizontal: "center" };
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const rowNum = index + 2;
+    const row = sheet.getRow(rowNum);
+
+    row.values = [
+      item.platform || "Web",
+      item.domain || "N/A",
+      item.query || "-",
+      item.title || "Untitled Mention",
+      item.snippet || "-",
+      item.published || "N/A",
+      item.engine || "Google",
+      item.first_seen || "N/A",
+      item.url ? { text: "🔗 Open Link", hyperlink: item.url } : "No URL",
+    ];
+
+    row.font = { name: "Segoe UI", size: 10 };
+    row.alignment = { vertical: "top" };
+
+    // Column alignments
+    sheet.getCell(`A${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`B${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`C${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`E${rowNum}`).alignment = { vertical: "top", wrapText: true };
+    sheet.getCell(`F${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`G${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`H${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+    sheet.getCell(`I${rowNum}`).alignment = { vertical: "top", horizontal: "center" };
+
+    // Domain styling
+    sheet.getCell(`B${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF0284C7" } };
+
+    // Direct URL Hyperlink Styling
+    if (item.url) {
+      sheet.getCell(`I${rowNum}`).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF2563EB" }, underline: true };
+    }
+
+    // Alternating Zebra Row Background
+    if (index % 2 === 1) {
+      for (let col = 1; col <= 9; col++) {
+        const c = sheet.getCell(rowNum, col);
+        if (!c.fill) {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+        }
+      }
+    }
+  });
+}
+

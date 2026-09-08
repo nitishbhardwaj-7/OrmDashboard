@@ -19,6 +19,7 @@ import type {
   GoogleStatsResponse,
   GoogleScanPayload,
   GoogleIngestResult,
+  GoogleMention,
 } from "./types";
 
 function getApiBaseUrl(): string {
@@ -229,4 +230,51 @@ export const api = {
     const url = `${BASE_URL}/export/excel${toQuery(filters)}`;
     window.open(url, "_blank");
   },
+
+  exportGoogleToExcel: async (data: {
+    items?: GoogleMention[];
+    filters?: {
+      platform?: string;
+      dateRangeLabel?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      query?: string;
+    };
+  } = {}) => {
+    if (data.items && data.items.length > 0) {
+      const res = await fetch(`${BASE_URL}/google-scraper/export-excel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to export Google Excel report.");
+      }
+      const blob = await res.blob();
+      const safePlat = (data.filters?.platform || "All").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const dateLabel = (data.filters?.dateRangeLabel || "AllTime").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `Google_Mentions_${safePlat}_${dateLabel}_${timestamp}.xlsx`;
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } else {
+      const queryParams: Record<string, string | undefined> = {
+        platform: data.filters?.platform,
+        q: data.filters?.query,
+        dateRangeLabel: data.filters?.dateRangeLabel,
+        dateFrom: data.filters?.dateFrom,
+        dateTo: data.filters?.dateTo,
+      };
+      const url = `${BASE_URL}/google-scraper/export-excel${toQuery(queryParams)}`;
+      window.open(url, "_blank");
+    }
+  },
 };
+
