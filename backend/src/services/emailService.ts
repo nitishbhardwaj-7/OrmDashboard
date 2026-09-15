@@ -21,6 +21,14 @@ export function parseRecipientList(raw?: string): string[] {
     .filter((e) => e.length > 0 && e.includes("@"));
 }
 
+/** True when SMTP credentials and at least one recipient are set, i.e. an alert can actually be attempted. */
+export async function isAlertEmailConfigured(): Promise<boolean> {
+  await refreshEnvFromDisk();
+  const user = (env.SMTP_USER || env.GMAIL_USER)?.trim();
+  const pass = (env.SMTP_PASS || env.GMAIL_PASS)?.trim();
+  return Boolean(user && pass && parseRecipientList(env.ALERT_EMAIL).length > 0);
+}
+
 function createSmtpTransporter() {
   const host = env.SMTP_HOST?.trim() || "";
   const port = Number(env.SMTP_PORT) || 587;

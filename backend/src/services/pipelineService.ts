@@ -212,9 +212,55 @@ async function upsertComment(
   return { created: true, id: created.id };
 }
 
+/** Emails an alert for a NEGATIVE post; marks alertSent only once delivery succeeds so failures retry next cycle. */
+async function alertNegativePost(id: string): Promise<boolean> {
+  const post = await prisma.post.findUnique({ where: { id }, include: { keyword: true } });
+  if (!post || post.sentiment !== "NEGATIVE" || post.alertSent || post.isCompetitor) return false;
+
+  const platform = post.platform || (post.url?.includes("quora") ? "quora" : post.url?.includes("teamblind") ? "teamblind" : "reddit");
+  const sent = await sendNegativeMentionAlert({
+    type: "post",
+    keyword: post.keyword.term,
+    platform,
+    text: post.text || "",
+    author: post.author || "Anonymous",
+    url: post.url || "",
+    sentiment: "NEGATIVE",
+    confidence: post.confidence,
+    publishedAt: post.publishedAt || post.createdAt,
+  });
+  if (sent) {
+    await prisma.post.update({ where: { id }, data: { alertSent: true } });
+  }
+  return sent;
+}
+
+/** Emails an alert for a NEGATIVE comment; marks alertSent only once delivery succeeds so failures retry next cycle. */
+async function alertNegativeComment(id: string): Promise<boolean> {
+  const comment = await prisma.comment.findUnique({ where: { id }, include: { keyword: true, post: true } });
+  if (!comment || comment.sentiment !== "NEGATIVE" || comment.alertSent || comment.isCompetitor) return false;
+
+  const platform = comment.post?.platform || (comment.url?.includes("quora") ? "quora" : comment.url?.includes("teamblind") ? "teamblind" : "reddit");
+  const sent = await sendNegativeMentionAlert({
+    type: "comment",
+    keyword: comment.keyword.term,
+    platform,
+    text: comment.text || "",
+    author: comment.author || "Anonymous",
+    url: comment.url || comment.post?.url || "",
+    sentiment: "NEGATIVE",
+    confidence: comment.confidence,
+    publishedAt: comment.publishedAt || comment.createdAt,
+  });
+  if (sent) {
+    await prisma.comment.update({ where: { id }, data: { alertSent: true } });
+  }
+  return sent;
+}
+
 /** Analyzes a single post by id. Returns true if it ended ANALYZED. Sends email alert for negative post. */
 export async function analyzePost(id: string): Promise<boolean> {
-  const post = await prisma.post.findUnique({ where: { id }, include: { keyword: true } });
+  const post = await prisma.post.findUnique({ where: { id } });
   if (!post) return false;
 
   if (!post.text || !post.text.trim()) {
@@ -238,27 +284,6 @@ export async function analyzePost(id: string): Promise<boolean> {
         analyzedAt: new Date(),
       },
     });
-
-    if (result.sentiment === "NEGATIVE" && !(post as any).alertSent) {
-      const platform = post.platform || (post.url?.includes("quora") ? "quora" : post.url?.includes("teamblind") ? "teamblind" : "reddit");
-      await sendNegativeMentionAlert({
-        type: "post",
-        keyword: post.keyword.term,
-        platform,
-        text: post.text,
-        author: post.author || "Anonymous",
-        url: post.url || "",
-        sentiment: "NEGATIVE",
-        confidence: result.confidence,
-        publishedAt: post.publishedAt || post.createdAt,
-      });
-      await (prisma.post as any).update({
-        where: { id },
-        data: { alertSent: true },
-      });
-    }
-
-    return true;
   } catch (err) {
     await prisma.post.update({
       where: { id },
@@ -269,11 +294,15 @@ export async function analyzePost(id: string): Promise<boolean> {
     });
     return false;
   }
+
+  // An email failure must not flip a successful analysis to FAILED.
+  await alertNegativePost(id).catch((err) => console.error(`Alert for post ${id} failed:`, err?.message || err));
+  return true;
 }
 
 /** Analyzes a single comment by id. Returns true if it ended ANALYZED. Sends email alert for negative comment. */
 export async function analyzeComment(id: string): Promise<boolean> {
-  const comment = await prisma.comment.findUnique({ where: { id }, include: { keyword: true, post: true } });
+  const comment = await prisma.comment.findUnique({ where: { id } });
   if (!comment) return false;
 
   if (!comment.text || !comment.text.trim()) {
@@ -297,27 +326,6 @@ export async function analyzeComment(id: string): Promise<boolean> {
         analyzedAt: new Date(),
       },
     });
-
-    if (result.sentiment === "NEGATIVE" && !(comment as any).alertSent) {
-      const platform = comment.post?.platform || (comment.url?.includes("quora") ? "quora" : comment.url?.includes("teamblind") ? "teamblind" : "reddit");
-      await sendNegativeMentionAlert({
-        type: "comment",
-        keyword: comment.keyword.term,
-        platform,
-        text: comment.text,
-        author: comment.author || "Anonymous",
-        url: comment.url || comment.post?.url || "",
-        sentiment: "NEGATIVE",
-        confidence: result.confidence,
-        publishedAt: comment.publishedAt || comment.createdAt,
-      });
-      await (prisma.comment as any).update({
-        where: { id },
-        data: { alertSent: true },
-      });
-    }
-
-    return true;
   } catch (err) {
     await prisma.comment.update({
       where: { id },
@@ -328,6 +336,66 @@ export async function analyzeComment(id: string): Promise<boolean> {
     });
     return false;
   }
+
+  await alertNegativeComment(id).catch((err) => console.error(`Alert for comment ${id} failed:`, err?.message || err));
+  return true;
+}
+
+// Items stuck in PROCESSING longer than this are assumed orphaned by a crash/restart.
+const STALE_PROCESSING_MS = 30 * 60 * 1000;
+
+function backlogWhere() {
+  return {
+    isCompetitor: false,
+    AND: [{ text: { not: null } }, { text: { not: "" } }],
+    OR: [
+      { status: ProcessingStatus.RECEIVED },
+      { status: ProcessingStatus.FAILED },
+      { status: ProcessingStatus.PROCESSING, updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) } },
+    ],
+  };
+}
+
+/** Sends Mistral analysis for brand posts/comments that were never analyzed or previously failed. */
+export async function analyzeBacklog(limit = 200): Promise<{ total: number; analyzed: number; failed: number }> {
+  const posts = await prisma.post.findMany({ where: backlogWhere(), select: { id: true }, orderBy: { createdAt: "asc" }, take: limit });
+  const comments = await prisma.comment.findMany({
+    where: backlogWhere(),
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: Math.max(0, limit - posts.length),
+  });
+
+  let analyzed = 0;
+  let failed = 0;
+  for (const p of posts) (await analyzePost(p.id)) ? analyzed++ : failed++;
+  for (const c of comments) (await analyzeComment(c.id)) ? analyzed++ : failed++;
+  return { total: posts.length + comments.length, analyzed, failed };
+}
+
+/** Retries alerts for NEGATIVE items whose email never went out (e.g. SMTP was down or unconfigured). */
+export async function sendPendingAlerts(limit = 50): Promise<{ pending: number; sent: number }> {
+  const where = { sentiment: "NEGATIVE", alertSent: false, isCompetitor: false };
+  const posts = await prisma.post.findMany({ where, select: { id: true }, orderBy: { createdAt: "asc" }, take: limit });
+  const comments = await prisma.comment.findMany({
+    where,
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: Math.max(0, limit - posts.length),
+  });
+
+  // Stop at the first delivery failure: it almost always means SMTP itself is broken, so
+  // hammering it with the rest of the queue just burns attempts until the next cycle.
+  let sent = 0;
+  for (const p of posts) {
+    if (!(await alertNegativePost(p.id))) return { pending: posts.length + comments.length, sent };
+    sent++;
+  }
+  for (const c of comments) {
+    if (!(await alertNegativeComment(c.id))) return { pending: posts.length + comments.length, sent };
+    sent++;
+  }
+  return { pending: posts.length + comments.length, sent };
 }
 
 export class PipelineError extends Error {

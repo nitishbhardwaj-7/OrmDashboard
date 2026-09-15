@@ -2,6 +2,8 @@ import { prisma } from "../lib/prisma";
 import { runPythonSocialScraper } from "./pythonScraperService";
 import { runManualScrapePipeline } from "../routes/manualScraper";
 import { runPythonCommand, autoIngestGoogleItems } from "../routes/googleScraper";
+import { analyzeBacklog, sendPendingAlerts } from "./pipelineService";
+import { isAlertEmailConfigured } from "./emailService";
 
 export interface CronLog {
   timestamp: string;
@@ -12,7 +14,7 @@ export interface CronLog {
   message: string;
 }
 
-let cronInterval: NodeJS.Timeout | null = null;
+let cronTimer: NodeJS.Timeout | null = null;
 let isScrapingRunning = false;
 let lastCronRunAt: Date | null = null;
 let nextCronRunAt: Date | null = null;
@@ -20,24 +22,36 @@ const cronLogs: CronLog[] = [];
 
 const HOURLY_MS = 60 * 60 * 1000; // 1 hour
 
+/** Milliseconds until the next top of the hour, so runs land on :00 regardless of when the process started. */
+function msUntilNextHour(): number {
+  const now = Date.now();
+  return HOURLY_MS - (now % HOURLY_MS);
+}
+
+function scheduleNextRun() {
+  const delay = msUntilNextHour();
+  nextCronRunAt = new Date(Date.now() + delay);
+  cronTimer = setTimeout(async () => {
+    try {
+      await executeHourlyScrapeCycle();
+    } catch (err: any) {
+      console.error("⚠ [Hourly Scraper] Cycle crashed:", err?.message || err);
+    } finally {
+      if (cronTimer) scheduleNextRun();
+    }
+  }, delay);
+}
+
 export function startHourlyScraperCron() {
-  if (cronInterval) return;
-
-  console.log("⏰ Starting Automated Hourly Scraper Cron Job (Runs every 1 hour)...");
-  
-  // Set next run time
-  nextCronRunAt = new Date(Date.now() + HOURLY_MS);
-
-  // Run initial check / start interval
-  cronInterval = setInterval(async () => {
-    await executeHourlyScrapeCycle();
-  }, HOURLY_MS);
+  if (cronTimer) return;
+  scheduleNextRun();
+  console.log(`⏰ Hourly Scraper Cron started — runs at the top of every hour. Next run: ${nextCronRunAt?.toISOString()}`);
 }
 
 export function stopHourlyScraperCron() {
-  if (cronInterval) {
-    clearInterval(cronInterval);
-    cronInterval = null;
+  if (cronTimer) {
+    clearTimeout(cronTimer);
+    cronTimer = null;
     nextCronRunAt = null;
     console.log("⏰ Automated Hourly Scraper Cron Job stopped.");
   }
@@ -46,7 +60,7 @@ export function stopHourlyScraperCron() {
 export function getCronStatus() {
   return {
     isRunning: isScrapingRunning,
-    cronEnabled: cronInterval !== null,
+    cronEnabled: cronTimer !== null,
     lastCronRunAt,
     nextCronRunAt,
     logs: cronLogs.slice(-20),
@@ -61,7 +75,6 @@ export async function executeHourlyScrapeCycle() {
 
   isScrapingRunning = true;
   lastCronRunAt = new Date();
-  nextCronRunAt = new Date(Date.now() + HOURLY_MS);
 
   console.log(`⏰ Executing Hourly Scrape Cycle at ${lastCronRunAt.toISOString()}...`);
 
@@ -167,12 +180,48 @@ export async function executeHourlyScrapeCycle() {
       console.error(`⚠ [Hourly Scraper] Error scraping Google SERP: ${gErr.message}`);
     }
 
-    return {
-      ok: true,
-      message: `Hourly scrape cycle completed. ${totalNewItems} new mentions added across platform keywords & Google SERP.`,
-      newItems: totalNewItems,
-    };
+    // 3) Analyze anything Mistral hasn't classified yet (earlier failures, rate limits, crashed runs).
+    let backlogAnalyzed = 0;
+    try {
+      const backlog = await analyzeBacklog(200);
+      backlogAnalyzed = backlog.analyzed;
+      if (backlog.total > 0) {
+        pushLog("mistral", "backlog", backlog.failed > 0 && backlog.analyzed === 0 ? "FAILED" : "SUCCESS", backlog.analyzed,
+          `Analyzed ${backlog.analyzed}/${backlog.total} pending items (${backlog.failed} failed, will retry next hour).`);
+      }
+    } catch (err: any) {
+      pushLog("mistral", "backlog", "FAILED", 0, err?.message || "Backlog analysis failed.");
+    }
+
+    // 4) Re-send alerts for negative items whose email never went out.
+    let alertsSent = 0;
+    try {
+      if (await isAlertEmailConfigured()) {
+        const alerts = await sendPendingAlerts(50);
+        alertsSent = alerts.sent;
+        if (alerts.pending > 0) {
+          pushLog("email", "alerts", alerts.sent < alerts.pending ? "FAILED" : "SUCCESS", alerts.sent,
+            `Sent ${alerts.sent}/${alerts.pending} pending negative-mention alerts.`);
+        }
+      } else {
+        const msg = "SMTP or ALERT_EMAIL not configured — negative alerts are queued until it is set in Settings.";
+        console.warn(`⚠ [Hourly Scraper] ${msg}`);
+        pushLog("email", "alerts", "FAILED", 0, msg);
+      }
+    } catch (err: any) {
+      pushLog("email", "alerts", "FAILED", 0, err?.message || "Pending alert delivery failed.");
+    }
+
+    const message = `Hourly scrape cycle completed. ${totalNewItems} new mentions, ${backlogAnalyzed} backlog items analyzed, ${alertsSent} queued alerts sent.`;
+    console.log(`✓ [Hourly Scraper] ${message}`);
+    return { ok: true, message, newItems: totalNewItems };
   } finally {
     isScrapingRunning = false;
   }
+}
+
+function pushLog(platform: string, keyword: string, status: CronLog["status"], newItems: number, message: string) {
+  cronLogs.push({ timestamp: new Date().toISOString(), platform, keyword, status, newItems, message });
+  // Logs live in memory for the status endpoint; cap so a long-running process doesn't grow unbounded.
+  if (cronLogs.length > 200) cronLogs.splice(0, cronLogs.length - 200);
 }

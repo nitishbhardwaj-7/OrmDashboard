@@ -45,8 +45,24 @@ export async function classifySentiment(text: string): Promise<SentimentResult> 
     throw new AiSentimentError("Cannot classify empty text.");
   }
 
-  const raw = await callChatCompletions(trimmed);
+  const raw = await callWithRetry(trimmed);
   return parseModelOutput(raw);
+}
+
+// Backoff delays for transient Mistral failures (429 rate limit, 5xx, timeouts/network).
+const RETRY_DELAYS_MS = [2000, 5000, 15000];
+
+async function callWithRetry(text: string): Promise<string> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callChatCompletions(text);
+    } catch (err) {
+      const status = err instanceof AiSentimentError ? err.status : undefined;
+      const transient = status === undefined || status === 429 || status >= 500;
+      if (!transient || attempt >= RETRY_DELAYS_MS.length) throw err;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
+  }
 }
 
 async function callChatCompletions(text: string): Promise<string> {
