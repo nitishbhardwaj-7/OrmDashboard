@@ -111,6 +111,79 @@ export function runPythonCommand(args: string[]): Promise<any> {
   });
 }
 
+export const GOOGLE_SOURCE = "google";
+
+/** A stored Google-sourced Post rendered in the GoogleMention shape the page already expects. */
+function toGoogleMention(post: any) {
+  let raw: any = {};
+  try {
+    raw = post.rawItem ? JSON.parse(post.rawItem) : {};
+  } catch {
+    raw = {};
+  }
+  const text: string = post.text || "";
+  const splitIdx = text.indexOf("\n\n");
+  return {
+    id: post.id,
+    url: post.url || raw.url || "",
+    title: raw.title || (splitIdx > 0 ? text.slice(0, splitIdx) : text).slice(0, 300),
+    snippet: raw.snippet ?? (splitIdx > 0 ? text.slice(splitIdx + 2) : ""),
+    domain: post.author || raw.domain || "",
+    platform: raw.platform || post.platform || "Web",
+    norm_url: raw.norm_url,
+    title_key: raw.title_key,
+    source_id: raw.source_id,
+    engine: raw.engine,
+    query: raw.query,
+    published: post.publishedAt ? post.publishedAt.toISOString() : raw.published || "",
+    first_seen: post.createdAt ? post.createdAt.toISOString() : raw.first_seen || "",
+    // Available now that Google mentions live alongside everything else.
+    sentiment: post.sentiment,
+    confidence: post.confidence,
+    keyword: post.keyword?.term,
+  };
+}
+
+/** Reads Google-sourced mentions out of Postgres, applying the page's platform/query filters. */
+export async function fetchGoogleMentions(platform = "All", query = "", limit = 2000) {
+  const where: any = { source: GOOGLE_SOURCE, isCompetitor: false };
+  if (platform && platform.toLowerCase() !== "all") {
+    where.platform = { equals: platform, mode: "insensitive" };
+  }
+  if (query && query.trim()) {
+    const q = query.trim();
+    where.OR = [
+      { text: { contains: q, mode: "insensitive" } },
+      { url: { contains: q, mode: "insensitive" } },
+      { author: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
+  const [rows, totalAll, byPlatform] = await Promise.all([
+    prisma.post.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(limit, 1), 5000),
+      include: { keyword: { select: { term: true } } },
+    }),
+    prisma.post.count({ where: { source: GOOGLE_SOURCE, isCompetitor: false } }),
+    prisma.post.groupBy({
+      by: ["platform"],
+      where: { source: GOOGLE_SOURCE, isCompetitor: false },
+      _count: true,
+    }),
+  ]);
+
+  const counts: Record<string, number> = {};
+  for (const row of byPlatform) {
+    const label = row.platform ? row.platform.charAt(0).toUpperCase() + row.platform.slice(1) : "Web";
+    counts[label] = (counts[label] || 0) + row._count;
+  }
+
+  const mentions = rows.map(toGoogleMention);
+  return { brand: "EB1A Experts", total: totalAll, shown: mentions.length, counts, mentions };
+}
+
 // 1) Mentions endpoint
 googleScraperRouter.get("/mentions", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -118,14 +191,7 @@ googleScraperRouter.get("/mentions", async (req: Request, res: Response, next: N
     const query = (req.query.q as string) || (req.query.query as string) || "";
     const limit = Number(req.query.limit) || 2000;
 
-    const result = await runPythonCommand([
-      "--action", "mentions",
-      "--platform", platform,
-      "--query", query,
-      "--limit", String(limit),
-    ]);
-
-    res.json(result);
+    res.json(await fetchGoogleMentions(platform, query, limit));
   } catch (err) {
     next(err);
   }
@@ -134,8 +200,8 @@ googleScraperRouter.get("/mentions", async (req: Request, res: Response, next: N
 // 2) Stats endpoint
 googleScraperRouter.get("/stats", async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await runPythonCommand(["--action", "stats"]);
-    res.json(result);
+    const { total, counts } = await fetchGoogleMentions("All", "", 1);
+    res.json({ total, counts });
   } catch (err) {
     next(err);
   }
@@ -322,6 +388,7 @@ export async function autoIngestGoogleItems(items: any[], keyword?: string) {
           publishedAt: safeParseDate(item.published, item.snippet),
           rawItem: JSON.stringify(item),
           status: ProcessingStatus.RECEIVED,
+          source: GOOGLE_SOURCE,
         },
       });
       postsCreated++;
@@ -381,14 +448,8 @@ googleScraperRouter.post("/export-excel", async (req: Request, res: Response, ne
       const query = (filters?.query as string) || (filters?.q as string) || "";
       const limit = Number(filters?.limit) || 5000;
 
-      const result: any = await runPythonCommand([
-        "--action", "mentions",
-        "--platform", platform,
-        "--query", query,
-        "--limit", String(limit),
-      ]);
-
-      exportItems = Array.isArray(result?.mentions) ? result.mentions : [];
+      const result = await fetchGoogleMentions(platform, query, limit);
+      exportItems = result.mentions as GoogleExportItem[];
     }
 
     const exportOptions: GoogleExcelExportOptions = {
@@ -422,14 +483,7 @@ googleScraperRouter.get("/export-excel", async (req: Request, res: Response, nex
     const dateTo = req.query.dateTo ? String(req.query.dateTo) : undefined;
     const limit = Number(req.query.limit) || 5000;
 
-    const result: any = await runPythonCommand([
-      "--action", "mentions",
-      "--platform", platform,
-      "--query", query,
-      "--limit", String(limit),
-    ]);
-
-    const exportItems: GoogleExportItem[] = Array.isArray(result?.mentions) ? result.mentions : [];
+    const exportItems = (await fetchGoogleMentions(platform, query, limit)).mentions as GoogleExportItem[];
 
     const buffer = await generateGoogleExcelReport(exportItems, {
       platform,

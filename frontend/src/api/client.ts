@@ -97,8 +97,13 @@ export const api = {
       deletedKeywords: number;
     }>("/settings/reset-database", { method: "POST" }),
 
-  getOverview: (keyword?: string, platform?: ItemFiltersQuery["platform"], dateFrom?: string, dateTo?: string) =>
-    request<Overview>(`/overview${toQuery({ keyword, platform, dateFrom, dateTo })}`),
+  getOverview: (
+    keyword?: string,
+    platform?: ItemFiltersQuery["platform"],
+    dateFrom?: string,
+    dateTo?: string,
+    source?: "scraper" | "google"
+  ) => request<Overview>(`/overview${toQuery({ keyword, platform, dateFrom, dateTo, source })}`),
 
   getKeywords: () => request<{ keywords: KeywordSummary[] }>("/keywords"),
 

@@ -6,7 +6,10 @@ export interface ItemFilters {
   keyword?: string;
   sentiment?: SentimentValue;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
+  // Any platform label present in the data (reddit, quora, news, youtube, web, ...) or "all".
+  platform?: string;
+  // Which subsystem found the mention: "scraper", "google", or undefined for both.
+  source?: "scraper" | "google";
   dateFrom?: Date;
   dateTo?: Date;
   author?: string;
@@ -19,6 +22,10 @@ function postWhere(f: ItemFilters): Prisma.PostWhereInput {
   const conditions: Prisma.PostWhereInput[] = [
     { isCompetitor: false },
   ];
+
+  if (f.source) {
+    conditions.push({ source: f.source });
+  }
 
   if (f.keyword && f.keyword.trim()) {
     const kw = f.keyword.trim();
@@ -77,6 +84,11 @@ function commentWhere(f: ItemFilters): Prisma.CommentWhereInput {
   const conditions: Prisma.CommentWhereInput[] = [
     { isCompetitor: false },
   ];
+
+  if (f.source === "google") {
+    // Google SERP results are posts only; no comment can match this filter.
+    conditions.push({ id: { equals: "__never__" } });
+  }
 
   if (f.keyword && f.keyword.trim()) {
     const kw = f.keyword.trim();
@@ -206,23 +218,32 @@ export async function syncCompetitorFlags() {
   }
 }
 
-export async function getOverview(keyword?: string, platform?: string, dateFrom?: Date, dateTo?: Date) {
+export async function getOverview(
+  keyword?: string,
+  platform?: string,
+  dateFrom?: Date,
+  dateTo?: Date,
+  source?: ItemFilters["source"]
+) {
   await syncCompetitorFlags().catch(() => {});
 
   const f: ItemFilters = {
     keyword,
-    platform: (platform && platform !== "all" ? platform : undefined) as any,
+    platform: platform && platform !== "all" ? platform : undefined,
     dateFrom,
     dateTo,
+    source,
   };
   const pWhere = postWhere(f);
   const cWhere = commentWhere(f);
 
-  const [totalPosts, totalComments, postAgg, commentAgg] = await Promise.all([
+  const [totalPosts, totalComments, postAgg, commentAgg, sourceAgg, platformAgg] = await Promise.all([
     prisma.post.count({ where: pWhere }),
     prisma.comment.count({ where: cWhere }),
     prisma.post.groupBy({ by: ["sentiment"], where: pWhere, _count: true }),
     prisma.comment.groupBy({ by: ["sentiment"], where: cWhere, _count: true }),
+    prisma.post.groupBy({ by: ["source"], where: pWhere, _count: true }),
+    prisma.post.groupBy({ by: ["platform"], where: pWhere, _count: true }),
   ]);
 
   const counts: Record<string, number> = { POSITIVE: 0, NEGATIVE: 0, NEUTRAL: 0 };
@@ -233,10 +254,23 @@ export async function getOverview(keyword?: string, platform?: string, dateFrom?
   const totalAnalyzed = counts.POSITIVE + counts.NEGATIVE + counts.NEUTRAL;
   const pct = (n: number) => (totalAnalyzed > 0 ? Math.round((n / totalAnalyzed) * 1000) / 10 : 0);
 
+  // One total, split by where it came from: scraper posts + their comments vs Google SERP posts.
+  const googlePosts = sourceAgg.find((r) => r.source === "google")?._count ?? 0;
+  const scraperPosts = totalPosts - googlePosts;
+  const byPlatform: Record<string, number> = {};
+  for (const row of platformAgg) {
+    if (row.platform) byPlatform[row.platform.toLowerCase()] = (byPlatform[row.platform.toLowerCase()] || 0) + row._count;
+  }
+
   return {
     totalPosts,
     totalComments,
     totalMentions: totalPosts + totalComments,
+    bySource: {
+      scraper: scraperPosts + totalComments,
+      google: googlePosts,
+    },
+    byPlatform,
     totalAnalyzed,
     positive: counts.POSITIVE,
     negative: counts.NEGATIVE,

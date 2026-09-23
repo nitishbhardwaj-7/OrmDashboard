@@ -21,8 +21,13 @@ function parseFilters(query: any): ItemFilters {
   if (query.type && ["post", "comment", "both"].includes(String(query.type))) {
     f.type = query.type;
   }
-  if (query.platform && ["reddit", "quora", "teamblind", "trustpilot", "linkedin", "all"].includes(String(query.platform).toLowerCase())) {
-    f.platform = String(query.platform).toLowerCase() as ItemFilters["platform"];
+  // Any platform label the data actually contains is allowed now that Google SERP
+  // mentions (news, web, youtube, ...) live in the same table as the scraper feeds.
+  if (query.platform && /^[a-z0-9_-]{1,30}$/i.test(String(query.platform))) {
+    f.platform = String(query.platform).toLowerCase();
+  }
+  if (query.source && ["scraper", "google"].includes(String(query.source).toLowerCase())) {
+    f.source = String(query.source).toLowerCase() as ItemFilters["source"];
   }
   if (query.author) f.author = String(query.author);
   if (query.search) f.search = String(query.search);
@@ -39,7 +44,10 @@ itemsRouter.get("/overview", async (req, res) => {
   const platform = req.query.platform ? String(req.query.platform) : undefined;
   const dateFrom = req.query.dateFrom ? new Date(String(req.query.dateFrom)) : undefined;
   const dateTo = req.query.dateTo ? new Date(String(req.query.dateTo)) : undefined;
-  const overview = await getOverview(keyword, platform, dateFrom, dateTo);
+  const source = ["scraper", "google"].includes(String(req.query.source || "").toLowerCase())
+    ? (String(req.query.source).toLowerCase() as "scraper" | "google")
+    : undefined;
+  const overview = await getOverview(keyword, platform, dateFrom, dateTo, source);
   res.json(overview);
 });
 

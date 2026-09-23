@@ -5,6 +5,9 @@ export interface Overview {
   totalPosts: number;
   totalComments: number;
   totalMentions: number;
+  /** Where the mentions came from. Both are already included in totalMentions. */
+  bySource?: { scraper: number; google: number };
+  byPlatform?: Record<string, number>;
   totalAnalyzed: number;
   positive: number;
   negative: number;
@@ -64,7 +67,11 @@ export interface ItemFiltersQuery {
   keyword?: string;
   sentiment?: Sentiment;
   type?: "post" | "comment" | "both";
-  platform?: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all";
+  // Any platform label in the data: the scraper feeds plus Google SERP ones
+  // (news, web, youtube, facebook, ...).
+  platform?: string;
+  /** Restrict to how the mention was discovered. Omit for the combined feed. */
+  source?: "scraper" | "google";
   dateFrom?: string;
   dateTo?: string;
   author?: string;
@@ -221,6 +228,10 @@ export interface GoogleMention {
   published?: string;
   first_seen?: string;
   date_status?: "confirmed" | "estimated" | "unknown";
+  /** Available now that Google mentions are stored alongside the scraper feeds. */
+  sentiment?: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | null;
+  confidence?: number | null;
+  keyword?: string;
 }
 
 export interface GoogleMentionsResponse {

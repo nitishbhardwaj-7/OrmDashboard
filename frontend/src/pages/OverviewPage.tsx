@@ -17,7 +17,9 @@ import {
 } from "../components/charts/Charts";
 
 export function OverviewPage() {
-  const [selectedPlatform, setSelectedPlatform] = useState<"reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all">("all");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("all");
+  // "google" filters by discovery source (Serper SERP) rather than by platform label.
+  const [selectedSource, setSelectedSource] = useState<"scraper" | "google" | undefined>(undefined);
   const [dateRange, setDateRange] = useState<DateRange>({});
   const [overview, setOverview] = useState<Overview | null>(null);
   const [byKeyword, setByKeyword] = useState<SentimentByKeywordRow[]>([]);
@@ -27,7 +29,7 @@ export function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadData(platform = selectedPlatform, dr = dateRange) {
+  async function loadData(platform = selectedPlatform, dr = dateRange, source = selectedSource) {
     setLoading(true);
     setError(null);
 
@@ -35,7 +37,7 @@ export function OverviewPage() {
 
     try {
       const [ov, bk, bp, ot, kw] = await Promise.all([
-        api.getOverview(undefined, platform === "all" ? undefined : platform, dateFrom, dateTo),
+        api.getOverview(undefined, platform === "all" ? undefined : platform, dateFrom, dateTo, source),
         api.getByKeyword(),
         api.getByPlatform(undefined, dateFrom, dateTo),
         api.getOverTime(undefined, platform === "all" ? undefined : platform, dateFrom, dateTo),
@@ -55,11 +57,12 @@ export function OverviewPage() {
   }
 
   useEffect(() => {
-    loadData(selectedPlatform, dateRange);
-  }, [selectedPlatform, dateRange]);
+    loadData(selectedPlatform, dateRange, selectedSource);
+  }, [selectedPlatform, dateRange, selectedSource]);
 
-  function handlePlatformTab(platform: "reddit" | "quora" | "teamblind" | "trustpilot" | "linkedin" | "all") {
+  function handlePlatformTab(platform: string) {
     setSelectedPlatform(platform);
+    setSelectedSource(undefined);
   }
 
   function handleExportExcel() {
@@ -160,6 +163,17 @@ export function OverviewPage() {
             >
               LinkedIn
             </button>
+            <button
+              type="button"
+              className={`preset-chip ${selectedSource === "google" ? "active" : ""}`}
+              onClick={() => {
+                setSelectedPlatform("all");
+                setSelectedSource(selectedSource === "google" ? undefined : "google");
+              }}
+              title="Mentions discovered via Google/Bing/YouTube search (Serper)"
+            >
+              Google Search
+            </button>
           </div>
         </div>
       </div>
@@ -169,7 +183,7 @@ export function OverviewPage() {
 
       {error && (
         <div className="banner error" style={{ marginBottom: 20 }}>
-          {error} <button onClick={() => loadData(selectedPlatform, dateRange)} style={{ marginLeft: 10 }}>Retry</button>
+          {error} <button onClick={() => loadData(selectedPlatform, dateRange, selectedSource)} style={{ marginLeft: 10 }}>Retry</button>
         </div>
       )}
 
@@ -181,12 +195,14 @@ export function OverviewPage() {
         <>
           <div className="stat-grid">
             <StatCard
-              label={`Total Mentions (${selectedPlatform.toUpperCase()})`}
+              label={`Total Mentions (${selectedSource === "google" ? "GOOGLE SEARCH" : selectedPlatform.toUpperCase()})`}
               value={overview.totalMentions.toLocaleString()}
               sub={
                 selectedPlatform === "trustpilot"
                   ? `${overview.totalMentions.toLocaleString()} reviews`
-                  : `${overview.totalPosts} posts · ${overview.totalComments} comments`
+                  : overview.bySource
+                    ? `${overview.totalPosts} posts · ${overview.totalComments} comments · ${overview.bySource.scraper.toLocaleString()} scraped + ${overview.bySource.google.toLocaleString()} Google`
+                    : `${overview.totalPosts} posts · ${overview.totalComments} comments`
               }
             />
             <StatCard label="Total Analyzed" value={overview.totalAnalyzed.toLocaleString()} />
