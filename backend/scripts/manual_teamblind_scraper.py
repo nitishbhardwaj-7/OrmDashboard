@@ -7,6 +7,7 @@ import argparse
 import urllib.parse
 from datetime import datetime, timezone
 from playwright.sync_api import sync_playwright
+from date_utils import extract_page_date
 
 # Force UTF-8 encoding on Windows stdout & stderr
 if hasattr(sys.stdout, "reconfigure"):
@@ -127,6 +128,7 @@ def main():
                     post_page = context.new_page()
                     p_text = raw_title
                     p_comments = []
+                    p_date = None
 
                     try:
                         post_page.goto(p_url, wait_until="domcontentloaded", timeout=20000)
@@ -139,6 +141,8 @@ def main():
                                 .filter(txt => txt.length > 15);
                             return { title, paragraphs };
                         }""")
+
+                        p_date = extract_page_date(post_page)
 
                         if extracted_post.get("title") and len(extracted_post["title"]) > 5:
                             raw_title = extracted_post["title"]
@@ -162,7 +166,7 @@ def main():
                         "url": p_url,
                         "author": "Blind User",
                         "authorUrl": None,
-                        "publishedAt": datetime.now(timezone.utc).isoformat(),
+                        "publishedAt": p_date,
                         "likes": 0,
                         "shares": 0,
                         "commentsCount": len(p_comments),
@@ -178,7 +182,8 @@ def main():
                             "text": c_txt,
                             "url": p_url,
                             "author": "Blind User",
-                            "publishedAt": datetime.now(timezone.utc).isoformat(),
+                            # Per-comment dates aren't exposed by this extraction.
+                            "publishedAt": None,
                             "likes": 0
                         })
 
@@ -187,6 +192,7 @@ def main():
             elif text_nodes:
                 q_id = make_stable_id("blind_post_direct", target_url)
                 page_title = page.title().replace("- Blind", "").replace("Blind", "").strip() or f"TeamBlind post on {keyword}"
+                direct_date = extract_page_date(page)
                 post_item = {
                     "type": "post",
                     "id": q_id,
@@ -196,7 +202,7 @@ def main():
                     "url": target_url,
                     "author": "Blind User",
                     "authorUrl": None,
-                    "publishedAt": datetime.now(timezone.utc).isoformat(),
+                    "publishedAt": direct_date,
                     "likes": 0,
                     "shares": 0,
                     "commentsCount": max(0, len(text_nodes) - 1),
@@ -211,7 +217,7 @@ def main():
                         "text": t,
                         "url": target_url,
                         "author": "Blind User",
-                        "publishedAt": datetime.now(timezone.utc).isoformat(),
+                        "publishedAt": None,
                         "likes": 0
                     })
                 items.append(post_item)

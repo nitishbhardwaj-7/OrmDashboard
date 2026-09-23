@@ -7,6 +7,7 @@ import argparse
 import urllib.parse
 from datetime import datetime, timezone
 from playwright.sync_api import sync_playwright
+from date_utils import parse_serp_date
 
 # Force UTF-8 output on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -147,13 +148,14 @@ def main():
                 r_text = clean_review_text(r['title'], r['text'])
                 r_author = r['author'] or "Trustpilot Customer"
 
-                # Parse date if available
-                pub_date = datetime.now(timezone.utc).isoformat()
+                # Real review date from the card's <time datetime="...">; left unknown
+                # rather than defaulting to the scrape time when it's missing.
+                pub_date = None
                 if r['dateStr']:
                     try:
                         pub_date = datetime.fromisoformat(r['dateStr'].replace('Z', '+00:00')).isoformat()
                     except Exception:
-                        pass
+                        pub_date = parse_serp_date(r['dateStr'])
 
                 post_item = {
                     "type": "post",
