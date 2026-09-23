@@ -7,6 +7,8 @@ export interface Overview {
   totalMentions: number;
   /** Where the mentions came from. Both are already included in totalMentions. */
   bySource?: { scraper: number; google: number };
+  /** Week-over-week momentum by publish date, independent of the selected range. */
+  trend?: OverviewTrend;
   byPlatform?: Record<string, number>;
   totalAnalyzed: number;
   positive: number;
@@ -15,6 +17,26 @@ export interface Overview {
   positivePct: number;
   negativePct: number;
   neutralPct: number;
+}
+
+export interface TrendBucket {
+  total: number;
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
+export interface TrendChange {
+  abs: number;
+  /** null when the previous window was empty, so there is no meaningful percentage. */
+  pct: number | null;
+}
+
+export interface OverviewTrend {
+  windowDays: number;
+  current: TrendBucket;
+  previous: TrendBucket;
+  change: { total: TrendChange; positive: TrendChange; negative: TrendChange; neutral: TrendChange };
 }
 
 export interface KeywordSummary {

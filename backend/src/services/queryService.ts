@@ -218,6 +218,76 @@ export async function syncCompetitorFlags() {
   }
 }
 
+export interface TrendBucket {
+  total: number;
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
+export interface TrendChange {
+  abs: number;
+  /** Percent change vs the previous window; null when that window was empty. */
+  pct: number | null;
+}
+
+/** Counts mentions in one window, by sentiment. */
+async function countWindow(f: ItemFilters, from: Date, to: Date): Promise<TrendBucket> {
+  const windowed: ItemFilters = { ...f, dateFrom: from, dateTo: to };
+  const [postAgg, commentAgg] = await Promise.all([
+    prisma.post.groupBy({ by: ["sentiment"], where: postWhere(windowed), _count: true }),
+    prisma.comment.groupBy({ by: ["sentiment"], where: commentWhere(windowed), _count: true }),
+  ]);
+
+  const bucket: TrendBucket = { total: 0, positive: 0, negative: 0, neutral: 0 };
+  for (const row of [...postAgg, ...commentAgg]) {
+    bucket.total += row._count;
+    if (row.sentiment === Sentiment.POSITIVE) bucket.positive += row._count;
+    else if (row.sentiment === Sentiment.NEGATIVE) bucket.negative += row._count;
+    else if (row.sentiment === Sentiment.NEUTRAL) bucket.neutral += row._count;
+  }
+  return bucket;
+}
+
+function change(current: number, previous: number): TrendChange {
+  return {
+    abs: current - previous,
+    // A jump from zero has no meaningful percentage, so report null rather than Infinity.
+    pct: previous === 0 ? null : Math.round(((current - previous) / previous) * 1000) / 10,
+  };
+}
+
+/**
+ * Week-over-week momentum: the last `windowDays` against the `windowDays` before it,
+ * by publish date. createdAt would only measure how much scraping we happened to do.
+ * Deliberately independent of any date range picked in the UI, so the arrows always
+ * mean the same thing.
+ */
+export async function getTrend(f: ItemFilters = {}, windowDays = 7) {
+  const now = new Date();
+  const spanMs = windowDays * 24 * 60 * 60 * 1000;
+  const currentFrom = new Date(now.getTime() - spanMs);
+  const previousFrom = new Date(now.getTime() - spanMs * 2);
+
+  const base: ItemFilters = { ...f, dateFrom: undefined, dateTo: undefined };
+  const [current, previous] = await Promise.all([
+    countWindow(base, currentFrom, now),
+    countWindow(base, previousFrom, currentFrom),
+  ]);
+
+  return {
+    windowDays,
+    current,
+    previous,
+    change: {
+      total: change(current.total, previous.total),
+      positive: change(current.positive, previous.positive),
+      negative: change(current.negative, previous.negative),
+      neutral: change(current.neutral, previous.neutral),
+    },
+  };
+}
+
 export async function getOverview(
   keyword?: string,
   platform?: string,
@@ -237,13 +307,14 @@ export async function getOverview(
   const pWhere = postWhere(f);
   const cWhere = commentWhere(f);
 
-  const [totalPosts, totalComments, postAgg, commentAgg, sourceAgg, platformAgg] = await Promise.all([
+  const [totalPosts, totalComments, postAgg, commentAgg, sourceAgg, platformAgg, trend] = await Promise.all([
     prisma.post.count({ where: pWhere }),
     prisma.comment.count({ where: cWhere }),
     prisma.post.groupBy({ by: ["sentiment"], where: pWhere, _count: true }),
     prisma.comment.groupBy({ by: ["sentiment"], where: cWhere, _count: true }),
     prisma.post.groupBy({ by: ["source"], where: pWhere, _count: true }),
     prisma.post.groupBy({ by: ["platform"], where: pWhere, _count: true }),
+    getTrend(f),
   ]);
 
   const counts: Record<string, number> = { POSITIVE: 0, NEGATIVE: 0, NEUTRAL: 0 };
@@ -266,6 +337,7 @@ export async function getOverview(
     totalPosts,
     totalComments,
     totalMentions: totalPosts + totalComments,
+    trend,
     bySource: {
       scraper: scraperPosts + totalComments,
       google: googlePosts,

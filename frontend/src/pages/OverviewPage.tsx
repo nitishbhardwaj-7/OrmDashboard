@@ -196,6 +196,9 @@ export function OverviewPage() {
           <div className="stat-grid">
             <StatCard
               label={`Total Mentions (${selectedSource === "google" ? "GOOGLE SEARCH" : selectedPlatform.toUpperCase()})`}
+              trend={overview.trend?.change.total}
+              goodDirection="up"
+              windowDays={overview.trend?.windowDays}
               value={overview.totalMentions.toLocaleString()}
               sub={
                 selectedPlatform === "trustpilot"
@@ -206,9 +209,33 @@ export function OverviewPage() {
               }
             />
             <StatCard label="Total Analyzed" value={overview.totalAnalyzed.toLocaleString()} />
-            <StatCard label="Positive" value={overview.positive.toLocaleString()} sub={`${overview.positivePct}%`} variant="positive" />
-            <StatCard label="Negative" value={overview.negative.toLocaleString()} sub={`${overview.negativePct}%`} variant="negative" />
-            <StatCard label="Neutral" value={overview.neutral.toLocaleString()} sub={`${overview.neutralPct}%`} variant="neutral" />
+            <StatCard
+              label="Positive"
+              value={overview.positive.toLocaleString()}
+              sub={`${overview.positivePct}%`}
+              variant="positive"
+              trend={overview.trend?.change.positive}
+              goodDirection="up"
+              windowDays={overview.trend?.windowDays}
+            />
+            <StatCard
+              label="Negative"
+              value={overview.negative.toLocaleString()}
+              sub={`${overview.negativePct}%`}
+              variant="negative"
+              trend={overview.trend?.change.negative}
+              goodDirection="down"
+              windowDays={overview.trend?.windowDays}
+            />
+            <StatCard
+              label="Neutral"
+              value={overview.neutral.toLocaleString()}
+              sub={`${overview.neutralPct}%`}
+              variant="neutral"
+              trend={overview.trend?.change.neutral}
+              goodDirection="up"
+              windowDays={overview.trend?.windowDays}
+            />
           </div>
 
           <div className="charts-grid">
