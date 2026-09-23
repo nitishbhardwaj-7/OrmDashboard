@@ -54,6 +54,9 @@ export async function runManualScrapePipeline(term: string, platformStr: string,
   let commentsSkippedExisting = 0;
   const createdPostIds: string[] = [];
   const createdCommentIds: string[] = [];
+  // Scraper-side comment id -> stored DB id, so replies can point at their parent.
+  // Scrapers emit depth-first, so a parent is always seen before its children.
+  const commentIdMap = new Map<string, string>();
 
   // 3) Store Posts & Comments with strict deduplication
   for (const post of posts) {
@@ -125,6 +128,7 @@ export async function runManualScrapePipeline(term: string, platformStr: string,
 
       if (existingComment) {
         commentsSkippedExisting++;
+        if (c.id) commentIdMap.set(c.id, existingComment.id);
       } else {
         const createdComment = await prisma.comment.create({
           data: {
@@ -132,6 +136,8 @@ export async function runManualScrapePipeline(term: string, platformStr: string,
             keywordId: dbKeyword.id,
             scrapeRunId: scrapeRun.id,
             postId,
+            parentCommentId: c.parentId ? commentIdMap.get(c.parentId) ?? null : null,
+            depth: c.depth ?? 0,
             text: c.text ?? null,
             url: c.url ?? null,
             author: c.author ?? null,
@@ -144,6 +150,7 @@ export async function runManualScrapePipeline(term: string, platformStr: string,
         });
         commentsCreated++;
         createdCommentIds.push(createdComment.id);
+        if (c.id) commentIdMap.set(c.id, createdComment.id);
       }
     }
   }

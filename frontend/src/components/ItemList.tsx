@@ -65,9 +65,12 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
   }
 
   const sourceUrl = item.url ?? (item.type === "comment" ? item.post?.url : null) ?? null;
+  // Replies are indented a little and tagged, so a nested comment isn't mistaken
+  // for a top-level one. Indent is capped so deep threads stay readable.
+  const replyDepth = item.type === "comment" ? item.depth ?? 0 : 0;
 
   return (
-    <div className="item-card">
+    <div className="item-card" style={replyDepth > 0 ? { marginLeft: Math.min(replyDepth, 5) * 14, borderLeft: "2px solid var(--accent, #3b82f6)" } : undefined}>
       <div className="item-meta">
         <span className="item-type" style={{ background: isTrustpilot ? "rgba(0, 182, 122, 0.2)" : undefined, color: isTrustpilot ? "#00b67a" : undefined }}>
           {displayType}
@@ -76,6 +79,11 @@ function ItemCard({ item, onRetried }: { item: FeedItem; onRetried?: () => void 
         {item.author && <span>by {item.author}</span>}
         <span>{formatDate(item.publishedAt)}</span>
         {item.platform && <span>{item.platform}</span>}
+        {replyDepth > 0 && (
+          <span className="item-type" title={`Reply nested ${replyDepth} level${replyDepth > 1 ? "s" : ""} deep`}>
+            ↳ NESTED L{replyDepth}
+          </span>
+        )}
       </div>
       <p className="item-text">{item.text || <em style={{ color: "var(--text-dim)" }}>No text content extracted from this item.</em>}</p>
       <div className="item-footer">

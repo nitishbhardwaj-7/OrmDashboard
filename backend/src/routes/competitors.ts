@@ -40,6 +40,8 @@ export async function runCompetitorScrapePipeline(
   let commentsSkippedExisting = 0;
   const createdPostIds: string[] = [];
   const createdCommentIds: string[] = [];
+  // Scraper-side comment id -> stored DB id, for reply threading.
+  const commentIdMap = new Map<string, string>();
 
   for (const post of normalized.posts) {
     const sourceKey = buildSourceKey({
@@ -120,6 +122,7 @@ export async function runCompetitorScrapePipeline(
 
         if (existingC) {
           commentsSkippedExisting++;
+          if (c.id) commentIdMap.set(c.id, existingC.id);
           if (!existingC.isCompetitor) {
             await prisma.comment.update({
               where: { id: existingC.id },
@@ -133,6 +136,8 @@ export async function runCompetitorScrapePipeline(
               keywordId: dbKeyword.id,
               scrapeRunId: scrapeRun.id,
               postId: currentPostId,
+              parentCommentId: c.parentId ? commentIdMap.get(c.parentId) ?? null : null,
+              depth: c.depth ?? 0,
               text: c.text || null,
               url: c.url || null,
               author: c.author || null,
@@ -146,6 +151,7 @@ export async function runCompetitorScrapePipeline(
           });
           commentsCreated++;
           createdCommentIds.push(createdComment.id);
+          if (c.id) commentIdMap.set(c.id, createdComment.id);
         }
       }
     }

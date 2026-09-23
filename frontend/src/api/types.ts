@@ -54,6 +54,9 @@ export interface CommentItem extends BaseItem {
   postId: string | null;
   likes: number | null;
   post?: { url: string | null; text: string | null } | null;
+  /** Reply threading: top-level comments are depth 0 with no parent. */
+  parentCommentId?: string | null;
+  depth?: number;
 }
 
 export type FeedItem = PostItem | CommentItem;

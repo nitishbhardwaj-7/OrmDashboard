@@ -24,6 +24,8 @@ const LIKES_KEYS = ["likes", "likesCount", "likeCount", "diggCount", "favoriteCo
 const SHARES_KEYS = ["shares", "sharesCount", "shareCount", "retweetCount", "reposts"];
 const COMMENTS_COUNT_KEYS = ["commentsCount", "commentCount", "numComments", "replyCount"];
 const COMMENTS_ARRAY_KEYS = ["comments", "latestComments", "topComments", "childComments", "replies"];
+const PARENT_ID_KEYS = ["parentId", "parent_id", "parentCommentId", "inReplyTo"];
+const DEPTH_KEYS = ["depth", "level", "nestLevel"];
 const PLATFORM_KEYS = ["platform", "source", "site", "network"];
 
 // Heuristics that suggest an item is a comment rather than a top-level post
@@ -103,6 +105,8 @@ function normalizeComment(raw: Record<string, unknown>): NormalizedComment {
     authorUrl: firstString(raw, AUTHOR_URL_KEYS),
     publishedAt: firstDate(raw, DATE_KEYS),
     likes: firstNumber(raw, LIKES_KEYS),
+    parentId: firstString(raw, PARENT_ID_KEYS),
+    depth: firstNumber(raw, DEPTH_KEYS),
     raw,
   };
 }

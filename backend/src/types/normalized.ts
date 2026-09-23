@@ -11,6 +11,10 @@ export interface NormalizedComment {
   authorUrl?: string | null;
   publishedAt?: string | null; // ISO string if parseable
   likes?: number | null;
+  // Threading, when the source exposes it (Reddit): the scraper-side id of the
+  // parent comment, and how deep this reply sits. Top-level = null / 0.
+  parentId?: string | null;
+  depth?: number | null;
   raw: unknown; // the untouched original item
 }
 
