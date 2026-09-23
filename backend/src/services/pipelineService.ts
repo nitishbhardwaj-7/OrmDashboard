@@ -346,7 +346,7 @@ const STALE_PROCESSING_MS = 30 * 60 * 1000;
 
 function backlogWhere() {
   return {
-    isCompetitor: false,
+    // Competitor items are analyzed too; they're only excluded from email alerts.
     AND: [{ text: { not: null } }, { text: { not: "" } }],
     OR: [
       { status: ProcessingStatus.RECEIVED },

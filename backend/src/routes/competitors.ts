@@ -4,10 +4,13 @@ import { runPythonSocialScraper } from "../services/pythonScraperService";
 import { normalizeApifyItems } from "../services/dataNormalizer";
 import { buildSourceKey } from "../lib/hash";
 import { ProcessingStatus } from "../types/status";
+import { analyzePost, analyzeComment } from "../services/pipelineService";
 
 export const competitorsRouter = Router();
 
-// Helper to store scraped competitor items without running AI sentiment analysis
+// Stores scraped competitor items and runs Mistral sentiment on them, same as brand
+// mentions. Competitor items are still excluded from negative-mention email alerts —
+// those exist to flag your own reputation, not a rival's.
 export async function runCompetitorScrapePipeline(
   term: string,
   platformName: string,
@@ -35,6 +38,8 @@ export async function runCompetitorScrapePipeline(
   let postsSkippedExisting = 0;
   let commentsCreated = 0;
   let commentsSkippedExisting = 0;
+  const createdPostIds: string[] = [];
+  const createdCommentIds: string[] = [];
 
   for (const post of normalized.posts) {
     const sourceKey = buildSourceKey({
@@ -83,15 +88,13 @@ export async function runCompetitorScrapePipeline(
           shares: post.shares ?? null,
           commentsCount: post.commentsCount ?? null,
           rawItem: JSON.stringify(post.raw || {}),
-          status: ProcessingStatus.ANALYZED,
-          sentiment: "NEUTRAL",
-          confidence: 1.0,
-          analyzedAt: new Date(),
+          status: ProcessingStatus.RECEIVED,
           isCompetitor: true,
         },
       });
       postsCreated++;
       currentPostId = created.id;
+      createdPostIds.push(created.id);
     }
 
     // Process nested comments for this post
@@ -124,7 +127,7 @@ export async function runCompetitorScrapePipeline(
             });
           }
         } else {
-          await prisma.comment.create({
+          const createdComment = await prisma.comment.create({
             data: {
               sourceKey: cSourceKey,
               keywordId: dbKeyword.id,
@@ -137,14 +140,12 @@ export async function runCompetitorScrapePipeline(
               publishedAt: c.publishedAt ? new Date(c.publishedAt) : null,
               likes: c.likes ?? null,
               rawItem: JSON.stringify(c.raw || {}),
-              status: ProcessingStatus.ANALYZED,
-              sentiment: "NEUTRAL",
-              confidence: 1.0,
-              analyzedAt: new Date(),
+              status: ProcessingStatus.RECEIVED,
               isCompetitor: true,
             },
           });
           commentsCreated++;
+          createdCommentIds.push(createdComment.id);
         }
       }
     }
@@ -178,7 +179,7 @@ export async function runCompetitorScrapePipeline(
         });
       }
     } else {
-      await prisma.comment.create({
+      const createdStandalone = await prisma.comment.create({
         data: {
           sourceKey,
           keywordId: dbKeyword.id,
@@ -190,16 +191,20 @@ export async function runCompetitorScrapePipeline(
           publishedAt: c.publishedAt ? new Date(c.publishedAt) : null,
           likes: c.likes ?? null,
           rawItem: JSON.stringify(c.raw || {}),
-          status: ProcessingStatus.ANALYZED,
-          sentiment: "NEUTRAL",
-          confidence: 1.0,
-          analyzedAt: new Date(),
+          status: ProcessingStatus.RECEIVED,
           isCompetitor: true,
         },
       });
       commentsCreated++;
+      createdCommentIds.push(createdStandalone.id);
     }
   }
+
+  // Run Mistral sentiment on the newly stored competitor items.
+  let analyzed = 0;
+  let failed = 0;
+  for (const id of createdPostIds) (await analyzePost(id)) ? analyzed++ : failed++;
+  for (const id of createdCommentIds) (await analyzeComment(id)) ? analyzed++ : failed++;
 
   return {
     scrapeRunId: scrapeRun.id,
@@ -207,6 +212,8 @@ export async function runCompetitorScrapePipeline(
     postsSkippedExisting,
     commentsCreated,
     commentsSkippedExisting,
+    analyzed,
+    failed,
   };
 }
 
