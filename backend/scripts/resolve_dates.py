@@ -14,8 +14,10 @@ from playwright.sync_api import sync_playwright
 from date_utils import extract_page_date
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+# Hard bot-wall / dead-page markers only. A generic "Sign in" link appears on plenty
+# of pages that still expose a real date, so it must not count as blocked.
 BLOCK_WORDS = ["security verification", "not a bot", "cloudflare", "just a moment",
-               "blocked by network security", "page not found", "sign in", "log in to"]
+               "blocked by network security", "page not found"]
 
 
 def main():
@@ -45,10 +47,15 @@ def main():
                 status = resp.status if resp else 0
                 body = (page.evaluate("document.body.innerText") or "")[:400].lower()
 
-                if status >= 400 or any(w in body for w in BLOCK_WORDS):
+                # Always try to extract: some sites (Trustpilot) return a 4xx status while
+                # still rendering the real content and its <time> element.
+                date = extract_page_date(page)
+                if date:
+                    results.append({**t, "date": date, "note": f"http{status}"})
+                elif any(w in body for w in BLOCK_WORDS):
                     results.append({**t, "date": None, "note": f"blocked/http{status}"})
                 else:
-                    results.append({**t, "date": extract_page_date(page), "note": f"http{status}"})
+                    results.append({**t, "date": None, "note": f"no-date/http{status}"})
             except Exception as e:
                 results.append({**t, "date": None, "note": f"{type(e).__name__}"})
             finally:
